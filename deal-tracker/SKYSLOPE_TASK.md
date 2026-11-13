@@ -25,7 +25,7 @@ A. NEW FILE (status "Queued")
    - File Owner (onBehalfOfAutoComplete) = payload.file_owner. Pick the exact name from the list. If it isn't there, stop on this deal (step 5).
    - Representation is preset by the URL.
    - Primary client: if contacts[0].entity is true, tick "The client is a company, trust, or other entity" and use the company name. Otherwise First / Last / Email. Use "Additional Contact" for each extra contact.
-   - Property: Street address, Unit #, City, State, Postal code, County.
+   - Property: Street address, Unit #, City, State, Postal code, County. If the payload has an MLS # (transaction.txtMLS) but no street address, click "Import MLS Data", search that MLS #, and import it; then copy the imported street number, street name, city, zip and county into the transaction pages in step 2 as well. If the MLS # isn't found, mark the deal "Needs Info" ("MLS # not found in SkySlope's MLS import").
    - Name the file by: Address.
    - Seller only: Create a Seller Net Sheet = payload.forms_create.createSellerNetSheet.
    - Template: choose payload.forms_create.template, and ONLY if SkySlope labels it "Broker template". Never choose a personal template (e.g. "Yearly Forms") and never any onboarding template (Employee On-Boarding, Experienced Agent On-Boarding Loop, Onboarding - New Agent). If the template is blank, or isn't shown as a Broker template, stop on this deal (step 5).

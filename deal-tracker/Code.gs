@@ -131,7 +131,8 @@ var FIELDS = [
     labels: { Seller: 'Accepted sale price (once you have an offer)', Buyer: 'Accepted purchase price', Tenant: 'Monthly rent (agreed)', Landlord: 'Monthly rent (agreed with tenant)' } },
   { key: 'acceptance_date', col: 'Acceptance Date', label: 'Offer accepted date', type: 'date', sides: ALL, section: 'Price & dates', sky: 'ACCEPTANCE DATE',
     labels: { Tenant: 'Application approved date', Landlord: 'Application approved date' } },
-  { key: 'contract_date', col: 'Contract Signed Date', label: 'Contract fully signed date', type: 'date', sides: SALE, section: 'Price & dates', sky: 'Inventory "UC Date"' },
+  { key: 'contract_date', col: 'Contract Signed Date', label: 'Contract fully signed date', type: 'date', sides: ALL, section: 'Price & dates', sky: 'Inventory "UC Date"',
+    labels: { Tenant: 'Lease fully signed date', Landlord: 'Lease fully signed date' } },
   { key: 'closing_date', col: 'Closing Date', label: 'Closing date (projected until scheduled)', type: 'date', sides: ALL, section: 'Price & dates', sky: 'CLOSING DATE',
     labels: { Tenant: 'Lease start / move-in date', Landlord: 'Lease start / move-in date' } },
   { key: 'closing_time', col: 'Closing Time', label: 'Closing time (once scheduled, e.g. 11:30am)', type: 'text', sides: SALE, section: 'Price & dates' },
@@ -162,6 +163,7 @@ var FIELDS = [
     labels: { Seller: 'Buyer last name', Buyer: 'Seller last name (or company)', Tenant: 'Landlord last name (or company)', Landlord: 'Tenant last name' } },
   { key: 'other_email', col: 'Other Party Email', label: 'Other party email', type: 'email', sides: ALL, section: 'Other side' },
   { key: 'other_phone', col: 'Other Party Phone', label: 'Other party phone', type: 'tel', sides: ALL, section: 'Other side' },
+  { key: 'other_unrepresented', col: 'Other Side Unrepresented', label: 'Other side has no agent (unrepresented)?', type: 'select', options: ['No', 'Yes'], default: 'No', sides: ALL, section: 'Other side' },
   { key: 'other_agent_first', col: 'Other Agent First Name', label: 'Other side\'s agent first name', type: 'text', sides: ALL, section: 'Other side', sky: 'AGENT REPRESENTING OTHER SIDE (required on that tab)' },
   { key: 'other_agent_last', col: 'Other Agent Last Name', label: 'Other side\'s agent last name', type: 'text', sides: ALL, section: 'Other side', sky: 'AGENT REPRESENTING OTHER SIDE (required on that tab)' },
   { key: 'other_brokerage', col: 'Other Brokerage', label: 'Other side\'s brokerage', type: 'text', sides: ALL, section: 'Other side', sky: 'Company' },
@@ -242,6 +244,28 @@ var MILESTONES = {
   ]
 };
 
+/**
+ * Fields that become mandatory once a deal reaches a stage (by status, or by
+ * checking the milestone that moves it there). Each rule is met when ANY of its
+ * `anyOf` groups has ALL of its fields filled. A field written "key=Value"
+ * must equal that value. "commission" means the commission for our side
+ * (listing side for Seller/Landlord, buyer side for Buyer/Tenant, both if dual).
+ */
+var STAGE_RULES = {
+  'Accepted Offer': [
+    { label: 'Accepted price', anyOf: [['price']] },
+    { label: 'Commission', commission: true },
+    { label: 'Property address (street number + street name) or MLS #', anyOf: [['street_number', 'street_name'], ['mls_number']] }
+  ],
+  'Under Contract': [
+    { label: 'Contract fully signed date', anyOf: [['contract_date']] },
+    { label: 'Closing date', anyOf: [['closing_date']] },
+    { label: 'Other party name', anyOf: [['other_first'], ['other_last']] },
+    { label: 'Other side\'s agent + brokerage (or mark the other side unrepresented)', anyOf: [['other_agent_last', 'other_brokerage'], ['other_unrepresented=Yes']] },
+    { label: 'Commission', commission: true }
+  ]
+};
+
 var SYSTEM_COLUMNS_START = ['Deal ID', 'Created At', 'Updated At', 'Agent Name', 'Agent Email', 'SkySlope File Owner',
   'Side', 'Represents', 'SkySlope Type', 'Status', 'Current Milestone', 'Current Milestone Date', 'Next Milestone', 'Milestones Done',
   'SkySlope Status', 'SkySlope File', 'SkySlope Upload Email', 'SkySlope Notes'];
@@ -265,7 +289,7 @@ function doGet() {
 
 function getAppConfig() {
   return {
-    appName: APP_NAME, sides: SIDES, statuses: STATUSES, offices: OFFICES,
+    appName: APP_NAME, sides: SIDES, statuses: STATUSES, offices: OFFICES, statusRank: STATUS_RANK, stageRules: STAGE_RULES,
     fields: FIELDS, milestones: MILESTONES, roster: readSkySlopeRoster_(), maxUploadBytes: MAX_UPLOAD_BYTES
   };
 }
@@ -642,9 +666,21 @@ function saveDeal(token, input) {
           (STATUS_RANK[c.status] || 0) > (STATUS_RANK[status] || 0)) status = c.status;
     });
     deal.status = status;
-    // Fill the contract date from the milestone if the agent didn't type it
-    if (newMs.contract_signed && newMs.contract_signed.done && !deal.contract_date && deal.side !== 'Tenant' && deal.side !== 'Landlord') {
-      deal.contract_date = newMs.contract_signed.date;
+    // Fill dates from the milestones if the agent didn't type them
+    (MILESTONES[deal.side] || []).forEach(function (m) {
+      var st = newMs[m.key];
+      if (!st || !st.done || !st.date) return;
+      if (m.status === 'Accepted Offer' && !deal.acceptance_date) deal.acceptance_date = st.date;
+      if (m.status === 'Under Contract' && !deal.contract_date) deal.contract_date = st.date;
+    });
+    // MLS # but no street address: take the address from the office inventory
+    if (deal.mls_number && !(deal.street_number && deal.street_name)) {
+      var found = findMlsOnInventory_(deal.mls_number);
+      if (found) ['street_number', 'street_name', 'city'].forEach(function (k) { if (!deal[k] && found[k]) deal[k] = found[k]; });
+    }
+    var stageMissing = stageMissing_(deal);
+    if (stageMissing.length) {
+      throw new Error('This deal is at "' + stageMissing.stage + '". Please fill in: ' + stageMissing.join(', '));
     }
 
     var changedFields = existing ? diffFields_(before, deal) : [];
@@ -683,6 +719,84 @@ function saveDeal(token, input) {
     deal_id: result.deal.deal_id, isNew: result.isNew, status: result.deal.status,
     skyslope_status: result.deal.skyslope_status, inventory: inv
   };
+}
+
+// ---------------------------------------------------------------------------
+// STAGE REQUIREMENTS + MLS LOOKUP
+// ---------------------------------------------------------------------------
+
+/** Highest stage the deal has reached: its status, or a checked milestone. */
+function dealStage_(deal) {
+  if (deal.status === 'Cancelled' || deal.status === 'TOM') return '';
+  var rank = STATUS_RANK[deal.status] || 0;
+  (MILESTONES[deal.side] || []).forEach(function (m) {
+    if (m.status && (deal.milestones || {})[m.key] && deal.milestones[m.key].done) rank = Math.max(rank, STATUS_RANK[m.status] || 0);
+  });
+  return rank;
+}
+
+/** Labels of the stage requirements this deal is missing (with .stage set). */
+function stageMissing_(deal) {
+  var rank = dealStage_(deal);
+  var missing = [];
+  var reached = '';
+  Object.keys(STAGE_RULES).forEach(function (stage) {
+    if (!rank || rank < STATUS_RANK[stage]) return;
+    reached = stage;
+    STAGE_RULES[stage].forEach(function (rule) {
+      var groups = rule.commission ? commissionGroups_(deal) : rule.anyOf;
+      var ok = rule.commission
+        ? groups.every(function (alts) { return alts.some(function (k) { return filled_(deal, k); }); })
+        : groups.some(function (g) { return g.every(function (k) { return filled_(deal, k); }); });
+      if (!ok && missing.indexOf(rule.label) < 0) missing.push(rule.label);
+    });
+  });
+  missing.stage = reached;
+  return missing;
+}
+
+/** For each side we represent, the fields that count as "commission entered". */
+function commissionGroups_(deal) {
+  var listing = ['listing_comm_pct', 'listing_comm_amt'], buying = ['sale_comm_pct', 'sale_comm_amt'];
+  if (deal.represent_both === 'Yes') return [listing, buying];
+  return (deal.side === 'Seller' || deal.side === 'Landlord') ? [listing] : [buying];
+}
+
+function filled_(deal, key) {
+  var p = key.split('=');
+  var v = String(deal[p[0]] == null ? '' : deal[p[0]]).trim();
+  return p.length > 1 ? v === p[1] : v !== '';
+}
+
+/** Called from the page: find an MLS # on the office inventory tabs. */
+function lookupMls(token, mls) {
+  requireSession_(token);
+  var f = findMlsOnInventory_(mls);
+  return f || null;
+}
+
+function findMlsOnInventory_(mls) {
+  var digits = String(mls || '').replace(/\D/g, '');
+  if (!digits) return null;
+  var id = PropertiesService.getScriptProperties().getProperty('INVENTORY_SPREADSHEET_ID') || DEFAULT_INVENTORY_ID;
+  var ss = SpreadsheetApp.openById(id);
+  for (var t = 0; t < OFFICES.length; t++) {
+    var sheet = ss.getSheetByName(OFFICES[t] + ' Inventory');
+    if (!sheet || sheet.getLastRow() < 2) continue;
+    var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 5).getDisplayValues();
+    for (var r = 0; r < rows.length; r++) {
+      if (String(rows[r][1]).replace(/\D/g, '') !== digits) continue;
+      var addr = String(rows[r][0]).replace(/\([^)]*\)/g, '').trim();
+      var parts = addr.split(',');
+      var street = parts[0].trim().split(/\s+/);
+      return {
+        street_number: street[0] || '', street_name: street.slice(1).join(' '),
+        city: (parts[1] || '').trim(), list_price: String(rows[r][4]).replace(/[$,\s]/g, ''),
+        source: sheet.getName()
+      };
+    }
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------

@@ -56,6 +56,11 @@
   .status { font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: #eef2ff; color: #3730a3; white-space: nowrap; }
   .s-Sold { background: #d1fae5; color: #065f46; } .s-Cancelled { background: #fee2e2; color: #991b1b; } .s-TOM { background: #fef3c7; color: #92400e; }
   .s-Under, .s-Closing { background: #dbeafe; color: #1e40af; } .s-Accepted { background: #ede9fe; color: #5b21b6; } .s-Coming { background: #f3f4f6; color: #374151; }
+  .stage-banner { background: #fff7e6; border: 1px solid #f5c26b; color: #7a4b00; border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; font-size: 14px; }
+  .stage-banner.ok { background: #ecfdf5; border-color: #8fd9b6; color: #065f46; }
+  .need label, label.need { color: #b45309; }
+  .need input, .need select, .need textarea { border-color: #f5a524; background: #fffbeb; }
+  .mlsrow { display: flex; gap: 8px; } .mlsrow input { flex: 1; min-width: 0; } .mlsrow .btn { white-space: nowrap; padding: 9px 12px; }
   .help { display: block; font-size: 12px; color: var(--muted); margin-top: 3px; }
   .sky { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 999px; background: #f3f4f6; color: #374151; white-space: nowrap; }
   .sky.ok { background: #d1fae5; color: #065f46; } .sky.wait { background: #fef3c7; color: #92400e; } .sky.err { background: #fee2e2; color: #991b1b; }
@@ -168,6 +173,7 @@
       <select id="edAgent"></select>
       <span class="help">The deal goes under this agent: their list, their office's inventory tab, and their name in SkySlope.</span>
     </div>
+    <div id="stageBanner" class="stage-banner hidden" aria-live="polite"></div>
     <div class="tabs">
       <button class="tab on" data-tab="details">Deal details</button>
       <button class="tab" data-tab="milestones">Milestones <span id="msCount"></span></button>
@@ -431,6 +437,7 @@
 
     setTab('details');
     show('editor');
+    updateStageMarks();
   }
 
   function fieldHtml(f, side, val, isNew) {
@@ -454,6 +461,7 @@
       var mode = f.type === 'money' || f.type === 'number' ? ' inputmode="decimal"' : '';
       var ph = f.type === 'money' ? ' placeholder="$"' : '';
       input = '<input id="' + id + '" name="' + f.key + '" type="' + type + '"' + mode + ph + req + ' value="' + esc(v) + '">';
+      if (f.key === 'mls_number') input = '<div class="mlsrow">' + input + '<button type="button" class="btn" id="mlsFind">Find address</button></div>';
     }
     return '<div class="' + wide.trim() + '">' + lab + input + help + '</div>';
   }
@@ -464,10 +472,80 @@
     if (ev.target === cb && cb.checked && !date.value) date.value = todayStr();
     if (ev.target === date && date.value && !cb.checked) cb.checked = true;
     row.classList.toggle('done', cb.checked);
+    // Checking "Accepted offer" / "Contract fully signed" (or the lease versions) fills that date on Deal details
+    var m = (CFG.milestones[CURRENT.side] || []).filter(function (x) { return x.key === row.getAttribute('data-ms'); })[0];
+    var target = m && { 'Accepted Offer': 'f_acceptance_date', 'Under Contract': 'f_contract_date' }[m.status];
+    if (cb.checked && target && $(target) && !$(target).value && date.value) $(target).value = date.value;
     updateMsProgress();
+    updateStageMarks();
   });
 
   function todayStr() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+
+  // ---------- stage requirements (rules come from the server) ----------
+  function fieldVal(k) { var el = $('f_' + k); return el ? el.value.trim() : ''; }
+  function filledKey(k) { var p = k.split('='); var v = fieldVal(p[0]); return p.length > 1 ? v === p[1] : v !== ''; }
+  function commissionGroups(side) {
+    var listing = ['listing_comm_pct', 'listing_comm_amt'], buying = ['sale_comm_pct', 'sale_comm_amt'];
+    if (fieldVal('represent_both') === 'Yes') return [listing, buying];
+    return (side === 'Seller' || side === 'Landlord') ? [listing] : [buying];
+  }
+  function stageCheck() {
+    if (!CURRENT) return { stage: '', missing: [], keys: [] };
+    var side = CURRENT.side, st = $('edStatus').value, R = CFG.statusRank || {};
+    if (st === 'Cancelled' || st === 'TOM') return { stage: '', missing: [], keys: [] };
+    var rank = R[st] || 0;
+    (CFG.milestones[side] || []).forEach(function (m) {
+      var cb = $('ms_' + m.key);
+      if (m.status && cb && cb.checked) rank = Math.max(rank, R[m.status] || 0);
+    });
+    var stage = '', missing = [], keys = [];
+    Object.keys(CFG.stageRules || {}).forEach(function (name) {
+      if (!rank || rank < R[name]) return;
+      stage = name;
+      CFG.stageRules[name].forEach(function (rule) {
+        var groups = rule.commission ? commissionGroups(side) : rule.anyOf;
+        var ok = rule.commission
+          ? groups.every(function (alts) { return alts.some(filledKey); })
+          : groups.some(function (g) { return g.every(filledKey); });
+        if (!ok) {
+          if (missing.indexOf(rule.label) < 0) missing.push(rule.label);
+          groups.forEach(function (g) { g.forEach(function (k) { keys.push(k.split('=')[0]); }); });
+        }
+      });
+    });
+    return { stage: stage, missing: missing, keys: keys };
+  }
+  function updateStageMarks() {
+    var r = stageCheck(), b = $('stageBanner');
+    Array.prototype.forEach.call(document.querySelectorAll('#detailsPane .need'), function (el) { el.classList.remove('need'); });
+    r.keys.forEach(function (k) { var el = $('f_' + k); if (el) el.closest('#detailsPane > fieldset > .grid > div').classList.add('need'); });
+    if (!r.stage) { b.classList.add('hidden'); return r; }
+    b.classList.remove('hidden');
+    b.classList.toggle('ok', !r.missing.length);
+    b.innerHTML = r.missing.length
+      ? '<b>' + esc(r.stage) + '</b>: still needed before you can save: ' + esc(r.missing.join(' · ')) + '. Those fields are highlighted on Deal details.'
+      : '<b>' + esc(r.stage) + '</b>: everything this stage needs is filled in.';
+    return r;
+  }
+  $('edStatus').addEventListener('change', updateStageMarks);
+  $('detailsPane').addEventListener('input', updateStageMarks);
+  $('detailsPane').addEventListener('change', updateStageMarks);
+  $('detailsPane').addEventListener('click', function (ev) {
+    if (ev.target.id !== 'mlsFind') return;
+    var mls = fieldVal('mls_number');
+    if (!mls) { toast('Type the MLS # first.', true); return; }
+    var btn = ev.target; busy(btn, true, 'Looking…');
+    call('lookupMls', TOKEN, mls).then(function (f) {
+      if (!f) { toast('MLS # ' + mls + ' isn\'t on the office inventory yet. Type the address, or save with just the MLS #: the SkySlope file will import the address from the MLS.', true); return; }
+      var filled = [];
+      [['street_number', 'street_number'], ['street_name', 'street_name'], ['city', 'city'], ['list_price', 'list_price']].forEach(function (p) {
+        var el = $('f_' + p[0]); if (el && !el.value.trim() && f[p[1]]) { el.value = f[p[1]]; filled.push(p[0].replace('_', ' ')); }
+      });
+      toast(filled.length ? 'Filled ' + filled.join(', ') + ' from ' + f.source + '.' : 'Found on ' + f.source + '; your address fields were already filled.');
+      updateStageMarks();
+    }).catch(function (e) { toast(e.message, true); }).then(function () { busy(btn, false); });
+  });
 
   function updateMsProgress() {
     var rows = document.querySelectorAll('#msList .ms'), done = document.querySelectorAll('#msList .ms.done').length;
@@ -494,6 +572,8 @@
       if (isReq(f, side) && !v) { missing.push(labelFor(f, side)); if (el) el.style.borderColor = 'var(--bad)'; }
     });
     if (USER.isAdmin && !$('edAgent').value) missing.unshift('Agent on this deal');
+    var sc = updateStageMarks();
+    if (!missing.length && sc.missing.length) { setTab('details'); toast(sc.stage + ': please fill in ' + sc.missing.join(', '), true); return; }
     if (missing.length) { setTab('details'); toast('Please fill in: ' + missing.join(', '), true); return; }
 
     var milestones = {};
