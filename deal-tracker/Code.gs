@@ -286,6 +286,7 @@ function setup() {
 /** Adds a "Deal Tracker" menu to the spreadsheet. */
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Deal Tracker')
+    .addItem('Set up Deal Tracker (run once)', 'setup')
     .addItem('Sync agents from Office Sheets roster', 'syncAgentsFromRoster')
     .addToUi();
 }
