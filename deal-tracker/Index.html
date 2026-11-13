@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Deal Tracker</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --ink: #111827; --muted: #6b7280; --line: #e5e7eb;
+    --brand: #1f2937; --accent: #2563eb; --accent-ink: #ffffff; --ok: #059669; --warn: #d97706; --bad: #dc2626;
+    --seller: #7c3aed; --buyer: #2563eb; --tenant: #0d9488; --landlord: #c2410c;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); }
+  header.top { background: var(--brand); color: #fff; padding: 14px 16px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 10; }
+  header.top h1 { font-size: 17px; margin: 0; flex: 1; letter-spacing: .2px; }
+  header.top .who { font-size: 13px; opacity: .85; }
+  main { max-width: 980px; margin: 0 auto; padding: 16px; }
+  .hidden { display: none !important; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  .btn { appearance: none; border: 1px solid var(--line); background: #fff; color: var(--ink); padding: 9px 14px; border-radius: 9px; font: inherit; font-weight: 600; cursor: pointer; }
+  .btn:hover { background: #f9fafb; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn.primary:hover { filter: brightness(1.07); }
+  .btn.ghost { background: transparent; border-color: rgba(255,255,255,.35); color: #fff; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 4px; }
+  input, select, textarea { width: 100%; font: inherit; padding: 9px 10px; border: 1px solid #d1d5db; border-radius: 8px; background: #fff; color: var(--ink); }
+  input:focus, select:focus, textarea:focus { outline: 2px solid #bfdbfe; border-color: var(--accent); }
+  textarea { min-height: 90px; resize: vertical; }
+  .req::after { content: " *"; color: var(--bad); }
+  .muted { color: var(--muted); }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+  /* Login */
+  #login { max-width: 380px; margin: 8vh auto 0; }
+  #login h2 { margin: 0 0 4px; }
+  #login .field { margin-top: 12px; }
+
+  /* Toolbar & list */
+  .toolbar { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-bottom: 12px; }
+  .filters { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+  .filters.admin { grid-template-columns: 2fr 1fr 1fr 1.3fr; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+  .stat { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .stat b { display: block; font-size: 20px; }
+  .stat span { font-size: 12px; color: var(--muted); }
+  .deal { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; padding: 14px 16px; margin-bottom: 10px; cursor: pointer; transition: border-color .15s; }
+  .deal:hover { border-color: #93c5fd; }
+  .deal .addr { font-weight: 700; }
+  .deal .meta { font-size: 13px; color: var(--muted); }
+  .badge { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; color: #fff; }
+  .b-Seller { background: var(--seller); } .b-Buyer { background: var(--buyer); } .b-Tenant { background: var(--tenant); } .b-Landlord { background: var(--landlord); }
+  .status { font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: #eef2ff; color: #3730a3; white-space: nowrap; }
+  .s-Closed { background: #d1fae5; color: #065f46; } .s-Cancelled { background: #fee2e2; color: #991b1b; } .s-On { background: #fef3c7; color: #92400e; }
+  .s-Under { background: #dbeafe; color: #1e40af; }
+  .bar { height: 6px; background: #e5e7eb; border-radius: 99px; overflow: hidden; grid-column: 1 / -1; }
+  .bar > i { display: block; height: 100%; background: var(--ok); }
+  .empty { text-align: center; padding: 40px 16px; color: var(--muted); }
+
+  /* Side picker */
+  .sides { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 12px; }
+  .side-tile { border: 2px solid var(--line); border-radius: var(--radius); padding: 18px; background: #fff; cursor: pointer; text-align: left; font: inherit; }
+  .side-tile:hover { border-color: var(--accent); }
+  .side-tile b { display: block; font-size: 18px; margin-bottom: 4px; }
+  .side-tile span { font-size: 13px; color: var(--muted); }
+
+  /* Editor */
+  .ed-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .ed-head h2 { margin: 0; font-size: 20px; flex: 1; min-width: 200px; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 14px; overflow-x: auto; }
+  .tab { padding: 10px 14px; border: 0; background: none; font: inherit; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+  .tab.on { color: var(--accent); border-color: var(--accent); }
+  fieldset { border: 0; padding: 0; margin: 0 0 18px; }
+  legend { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-bottom: 10px; }
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 14px; }
+  .grid .wide { grid-column: 1 / -1; }
+  .ms { display: grid; grid-template-columns: 28px 1fr 150px; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .ms:last-child { border-bottom: 0; }
+  .ms input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--ok); }
+  .ms .ml { font-weight: 600; }
+  .ms.done .ml { color: var(--ok); }
+  .ms .note { grid-column: 2 / -1; font-size: 13px; padding: 6px 8px; }
+  .savebar { position: sticky; bottom: 0; background: rgba(244,245,247,.95); backdrop-filter: blur(4px); padding: 12px 0; display: flex; gap: 10px; justify-content: flex-end; border-top: 1px solid var(--line); margin-top: 10px; }
+  .docs-upload { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end; margin-bottom: 14px; }
+  .doc { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .doc a { color: var(--accent); font-weight: 600; text-decoration: none; word-break: break-word; }
+
+  /* Toast */
+  #toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); background: #111827; color: #fff; padding: 11px 16px; border-radius: 10px; font-size: 14px; max-width: calc(100% - 32px); z-index: 50; box-shadow: 0 8px 24px rgba(0,0,0,.2); }
+  #toast.err { background: var(--bad); }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 640px) {
+    .grid, .filters, .filters.admin, .sides, .docs-upload { grid-template-columns: 1fr; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .ms { grid-template-columns: 28px 1fr; }
+    .ms input[type=date] { grid-column: 2; }
+    header.top .who { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1 id="appTitle">Agent Deal Tracker</h1>
+  <span class="who" id="who"></span>
+  <button class="btn ghost hidden" id="logoutBtn">Sign out</button>
+</header>
+
+<main>
+  <!-- LOGIN -->
+  <section id="login" class="card hidden">
+    <h2>Agent sign-in</h2>
+    <p class="muted" style="margin:0">Use the email and PIN your broker gave you.</p>
+    <form id="loginForm">
+      <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" type="email" autocomplete="email" required></div>
+      <div class="field"><label for="loginPin">PIN</label><input id="loginPin" type="password" inputmode="numeric" autocomplete="current-password" required></div>
+      <div class="field"><button class="btn primary" style="width:100%" type="submit" id="loginBtn">Sign in</button></div>
+    </form>
+  </section>
+
+  <!-- LIST -->
+  <section id="list" class="hidden">
+    <div class="toolbar">
+      <h2 style="margin:0;align-self:center" id="listTitle">My deals</h2>
+      <button class="btn primary" id="newDealBtn">+ New deal</button>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="filters" id="filters">
+      <input id="fSearch" placeholder="Search address, client, deal ID…">
+      <select id="fSide"><option value="">All sides</option></select>
+      <select id="fStatus"><option value="">All statuses</option></select>
+      <select id="fAgent" class="hidden"><option value="">All agents</option></select>
+    </div>
+    <div id="deals"></div>
+  </section>
+
+  <!-- SIDE PICKER -->
+  <section id="picker" class="hidden">
+    <button class="btn" data-go="list">← Back</button>
+    <h2 style="margin:16px 0 0">Who are you representing?</h2>
+    <div class="sides">
+      <button class="side-tile" data-side="Seller"><b>Seller</b><span>Listing side of a sale</span></button>
+      <button class="side-tile" data-side="Buyer"><b>Buyer</b><span>Purchase side of a sale</span></button>
+      <button class="side-tile" data-side="Tenant"><b>Tenant</b><span>Helping someone lease a property</span></button>
+      <button class="side-tile" data-side="Landlord"><b>Landlord</b><span>Leasing out an owner's property</span></button>
+    </div>
+  </section>
+
+  <!-- EDITOR -->
+  <section id="editor" class="hidden">
+    <button class="btn" data-go="list">← All deals</button>
+    <div class="ed-head" style="margin-top:14px">
+      <span class="badge" id="edSide"></span>
+      <h2 id="edTitle">New deal</h2>
+      <div style="min-width:170px"><select id="edStatus" aria-label="Deal status"></select></div>
+    </div>
+    <p class="muted" id="edMeta" style="margin:-4px 0 10px;font-size:13px"></p>
+    <div class="tabs">
+      <button class="tab on" data-tab="details">Deal details</button>
+      <button class="tab" data-tab="milestones">Milestones <span id="msCount"></span></button>
+      <button class="tab" data-tab="docs">Documents</button>
+    </div>
+
+    <form id="dealForm" novalidate>
+      <div data-pane="details" class="card" id="detailsPane"></div>
+      <div data-pane="milestones" class="card hidden">
+        <p class="muted" style="margin-top:0">Check each milestone as it happens. Dates default to today; change them if needed. Saving sends the update to the office.</p>
+        <div class="bar" style="margin-bottom:8px"><i id="msBar" style="width:0"></i></div>
+        <div id="msList"></div>
+      </div>
+      <div data-pane="docs" class="card hidden">
+        <div id="docsLocked" class="muted">Save the deal first, then upload documents here.</div>
+        <div id="docsArea" class="hidden">
+          <div class="docs-upload">
+            <div><label for="docCat">Document type</label>
+              <select id="docCat">
+                <option>Contract / Purchase Agreement</option><option>Listing Agreement</option><option>Buyer Agreement</option>
+                <option>Lease</option><option>Rental Application</option><option>Addendum / Amendment</option>
+                <option>Disclosure</option><option>Inspection Report</option><option>Earnest Money Receipt</option>
+                <option>Closing Disclosure / Settlement</option><option>Commission Disbursement</option><option>Other</option>
+              </select></div>
+            <div><label for="docFile">File (max 20 MB)</label><input id="docFile" type="file" multiple></div>
+            <button class="btn primary" type="button" id="uploadBtn">Upload</button>
+          </div>
+          <div id="docList"></div>
+        </div>
+      </div>
+
+      <div class="savebar">
+        <button class="btn" type="button" data-go="list">Cancel</button>
+        <button class="btn primary" type="submit" id="saveBtn">Save deal</button>
+      </div>
+    </form>
+  </section>
+</main>
+
+<div id="toast" class="hidden"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------- server bridge ----------
+  function call(fn) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (resolve, reject) {
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(function (err) {
+          var msg = (err && err.message) || String(err);
+          if (msg.indexOf('SESSION_EXPIRED') >= 0) { clearToken(); show('login'); msg = 'Your session expired. Please sign in again.'; }
+          reject(new Error(msg));
+        })[fn].apply(null, args);
+    });
+  }
+
+  // ---------- state ----------
+  var CFG = null, TOKEN = null, USER = null, DEALS = [], CURRENT = null;
+  var $ = function (id) { return document.getElementById(id); };
+  function store(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function clearToken() { TOKEN = null; store('dt_token', null); store('dt_user', null); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+  function toast(msg, isErr) {
+    var t = $('toast'); t.textContent = msg; t.className = isErr ? 'err' : '';
+    clearTimeout(toast._t); toast._t = setTimeout(function () { t.className = 'hidden'; }, isErr ? 6000 : 3500);
+  }
+  function busy(btn, on, text) {
+    if (on) { btn._txt = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>' + (text || 'Working…'); }
+    else { btn.disabled = false; if (btn._txt) btn.innerHTML = btn._txt; }
+  }
+  function show(view) {
+    ['login', 'list', 'picker', 'editor'].forEach(function (v) { $(v).classList.toggle('hidden', v !== view); });
+    $('logoutBtn').classList.toggle('hidden', view === 'login' || !TOKEN);
+    window.scrollTo(0, 0);
+  }
+
+  // ---------- boot ----------
+  call('getAppConfig').then(function (cfg) {
+    CFG = cfg;
+    $('appTitle').textContent = cfg.appName;
+    cfg.sides.forEach(function (s) { $('fSide').insertAdjacentHTML('beforeend', '<option>' + s + '</option>'); });
+    cfg.statuses.forEach(function (s) {
+      $('fStatus').insertAdjacentHTML('beforeend', '<option>' + s + '</option>');
+      $('edStatus').insertAdjacentHTML('beforeend', '<option>' + s + '</option>');
+    });
+    TOKEN = load('dt_token');
+    try { USER = JSON.parse(load('dt_user') || 'null'); } catch (e) { USER = null; }
+    if (TOKEN && USER) return enterApp();
+    return call('tryAutoLogin').then(function (s) { if (s) { setSession(s); enterApp(); } else show('login'); });
+  }).catch(function (e) { show('login'); toast(e.message, true); });
+
+  function setSession(s) { TOKEN = s.token; USER = s.user; store('dt_token', TOKEN); store('dt_user', JSON.stringify(USER)); }
+
+  $('loginForm').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var btn = $('loginBtn'); busy(btn, true, 'Signing in…');
+    call('login', $('loginEmail').value, $('loginPin').value)
+      .then(function (s) { setSession(s); $('loginPin').value = ''; enterApp(); })
+      .catch(function (e) { toast(e.message, true); })
+      .then(function () { busy(btn, false); });
+  });
+
+  $('logoutBtn').addEventListener('click', function () { call('logout', TOKEN).catch(function () {}); clearToken(); USER = null; $('who').textContent = ''; show('login'); });
+
+  function enterApp() {
+    $('who').textContent = USER.name ? USER.name + (USER.isAdmin ? ' · Admin' : '') : USER.email;
+    $('listTitle').textContent = USER.isAdmin ? 'All deals' : 'My deals';
+    $('fAgent').classList.toggle('hidden', !USER.isAdmin);
+    $('filters').classList.toggle('admin', !!USER.isAdmin);
+    show('list');
+    return refreshList();
+  }
+
+  // ---------- list ----------
+  function refreshList() {
+    $('deals').innerHTML = '<div class="empty"><span class="spinner"></span>Loading deals…</div>';
+    return call('listDeals', TOKEN).then(function (deals) {
+      DEALS = deals || [];
+      if (USER.isAdmin) {
+        var agents = {}; DEALS.forEach(function (d) { agents[d.agent_email] = d.agent_name || d.agent_email; });
+        var cur = $('fAgent').value;
+        $('fAgent').innerHTML = '<option value="">All agents</option>' + Object.keys(agents).sort().map(function (e) { return '<option value="' + esc(e) + '">' + esc(agents[e]) + '</option>'; }).join('');
+        $('fAgent').value = cur;
+      }
+      renderList();
+    }).catch(function (e) { $('deals').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
+  }
+
+  ['fSearch', 'fSide', 'fStatus', 'fAgent'].forEach(function (id) { $(id).addEventListener('input', renderList); });
+
+  function renderList() {
+    var q = $('fSearch').value.trim().toLowerCase(), side = $('fSide').value, st = $('fStatus').value, ag = $('fAgent').value;
+    var rows = DEALS.filter(function (d) {
+      if (side && d.side !== side) return false;
+      if (st && d.status !== st) return false;
+      if (ag && d.agent_email !== ag) return false;
+      if (q && [d.property_address, d.city, d.client_name, d.deal_id, d.agent_name].join(' ').toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+    var c = { Active: 0, 'Under Contract': 0, Closed: 0 };
+    DEALS.forEach(function (d) { if (c[d.status] != null) c[d.status]++; });
+    $('stats').innerHTML = [['Total', DEALS.length], ['Active', c.Active], ['Under contract', c['Under Contract']], ['Closed', c.Closed]]
+      .map(function (s) { return '<div class="stat"><b>' + s[1] + '</b><span>' + s[0] + '</span></div>'; }).join('');
+
+    if (!rows.length) {
+      $('deals').innerHTML = '<div class="empty card">' + (DEALS.length ? 'No deals match those filters.' : 'No deals yet. Tap <b>+ New deal</b> to add your first one.') + '</div>';
+      return;
+    }
+    $('deals').innerHTML = rows.map(function (d) {
+      var done = parseInt(String(d.milestones_done || '0'), 10) || 0, total = d.milestones_total || 1;
+      return '<div class="card deal" data-id="' + esc(d.deal_id) + '" tabindex="0">' +
+        '<div><span class="badge b-' + esc(d.side) + '">' + esc(d.side) + '</span> <span class="addr">' + esc(d.property_address) + (d.unit ? ' #' + esc(d.unit) : '') + '</span>' +
+        '<div class="meta">' + esc(d.client_name) + (d.city ? ' · ' + esc(d.city) : '') + (USER.isAdmin ? ' · ' + esc(d.agent_name || d.agent_email) : '') + ' · ' + esc(d.deal_id) + '</div></div>' +
+        '<div><span class="status s-' + esc(String(d.status).split(' ')[0]) + '">' + esc(d.status) + '</span></div>' +
+        '<div class="meta" style="grid-column:1/-1">Next: <b style="color:#374151">' + esc(d.next_milestone || '') + '</b>' +
+        (d.current_milestone_date ? ' · Last update ' + esc(d.current_milestone_date) : '') + (d.closing_date ? ' · Closing/start ' + esc(d.closing_date) : '') + '</div>' +
+        '<div class="bar"><i style="width:' + Math.round(done / total * 100) + '%"></i></div></div>';
+    }).join('');
+  }
+
+  $('deals').addEventListener('click', function (ev) { var el = ev.target.closest('.deal'); if (el) openDeal(el.getAttribute('data-id')); });
+  $('deals').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { var el = ev.target.closest('.deal'); if (el) openDeal(el.getAttribute('data-id')); } });
+
+  document.addEventListener('click', function (ev) {
+    var go = ev.target.closest('[data-go]');
+    if (go) { ev.preventDefault(); show(go.getAttribute('data-go')); if (go.getAttribute('data-go') === 'list') renderList(); }
+  });
+  $('newDealBtn').addEventListener('click', function () { show('picker'); });
+  Array.prototype.forEach.call(document.querySelectorAll('.side-tile'), function (b) {
+    b.addEventListener('click', function () { openEditor({ side: b.getAttribute('data-side'), status: 'Active', milestones: {} }); });
+  });
+
+  // ---------- editor ----------
+  function openDeal(id) {
+    toast('Opening deal…');
+    call('getDeal', TOKEN, id).then(openEditor).catch(function (e) { toast(e.message, true); });
+  }
+
+  function labelFor(f, side) { return (f.labels && f.labels[side]) || f.label; }
+
+  function openEditor(deal) {
+    CURRENT = deal;
+    var side = deal.side;
+    $('edSide').textContent = side; $('edSide').className = 'badge b-' + side;
+    $('edTitle').textContent = deal.deal_id ? (deal.property_address || 'Deal') : 'New ' + side.toLowerCase() + ' deal';
+    $('edStatus').value = deal.status || 'Active';
+    $('edMeta').textContent = deal.deal_id ? (deal.deal_id + ' · ' + (deal.agent_name || deal.agent_email) + ' · last updated ' + (deal.updated_at || '').replace('T', ' ')) : 'Fields marked * are required.';
+    $('saveBtn').textContent = deal.deal_id ? 'Save changes' : 'Submit deal';
+
+    // Details
+    var sections = [];
+    CFG.fields.forEach(function (f) {
+      if (f.sides.indexOf(side) < 0) return;
+      var sec = sections.filter(function (s) { return s.name === f.section; })[0];
+      if (!sec) { sec = { name: f.section, fields: [] }; sections.push(sec); }
+      sec.fields.push(f);
+    });
+    $('detailsPane').innerHTML = sections.map(function (s) {
+      return '<fieldset><legend>' + esc(s.name) + '</legend><div class="grid">' + s.fields.map(function (f) { return fieldHtml(f, side, deal[f.key]); }).join('') + '</div></fieldset>';
+    }).join('');
+
+    // Milestones
+    var list = CFG.milestones[side] || [];
+    var ms = deal.milestones || {};
+    $('msList').innerHTML = list.map(function (m) {
+      var s = ms[m.key] || {};
+      return '<div class="ms' + (s.done ? ' done' : '') + '" data-ms="' + m.key + '">' +
+        '<input type="checkbox" id="ms_' + m.key + '"' + (s.done ? ' checked' : '') + '>' +
+        '<label for="ms_' + m.key + '" class="ml" style="margin:0">' + esc(m.label) + '</label>' +
+        '<input type="date" aria-label="' + esc(m.label) + ' date" value="' + esc(s.date || '') + '">' +
+        '<input class="note" placeholder="Note (optional)" value="' + esc(s.note || '') + '"></div>';
+    }).join('');
+    updateMsProgress();
+
+    // Docs
+    $('docsLocked').classList.toggle('hidden', !!deal.deal_id);
+    $('docsArea').classList.toggle('hidden', !deal.deal_id);
+    renderDocs(deal.documents || []);
+
+    setTab('details');
+    show('editor');
+  }
+
+  function fieldHtml(f, side, val) {
+    var id = 'f_' + f.key, v = val == null ? '' : val, req = f.required ? ' required' : '';
+    var wide = f.type === 'textarea' || f.key === 'property_address' || f.key === 'client_address' ? ' wide' : '';
+    var lab = '<label for="' + id + '" class="' + (f.required ? 'req' : '') + '">' + esc(labelFor(f, side)) + '</label>';
+    var input;
+    if (f.type === 'select') {
+      input = '<select id="' + id + '" name="' + f.key + '"' + req + '><option value="">—</option>' +
+        f.options.map(function (o) { return '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>';
+    } else if (f.type === 'textarea') {
+      input = '<textarea id="' + id + '" name="' + f.key + '"' + req + '>' + esc(v) + '</textarea>';
+    } else {
+      var type = { money: 'text', number: 'text', date: 'date', email: 'email', tel: 'tel' }[f.type] || 'text';
+      var mode = f.type === 'money' || f.type === 'number' ? ' inputmode="decimal"' : '';
+      var ph = f.type === 'money' ? ' placeholder="$"' : '';
+      input = '<input id="' + id + '" name="' + f.key + '" type="' + type + '"' + mode + ph + req + ' value="' + esc(v) + '">';
+    }
+    return '<div class="' + wide.trim() + '">' + lab + input + '</div>';
+  }
+
+  $('msList').addEventListener('change', function (ev) {
+    var row = ev.target.closest('.ms'); if (!row) return;
+    var cb = row.querySelector('input[type=checkbox]'), date = row.querySelector('input[type=date]');
+    if (ev.target === cb && cb.checked && !date.value) date.value = todayStr();
+    if (ev.target === date && date.value && !cb.checked) cb.checked = true;
+    row.classList.toggle('done', cb.checked);
+    updateMsProgress();
+  });
+
+  function todayStr() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+
+  function updateMsProgress() {
+    var rows = document.querySelectorAll('#msList .ms'), done = document.querySelectorAll('#msList .ms.done').length;
+    $('msBar').style.width = rows.length ? Math.round(done / rows.length * 100) + '%' : '0';
+    $('msCount').textContent = '(' + done + '/' + rows.length + ')';
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) {
+    t.addEventListener('click', function () { setTab(t.getAttribute('data-tab')); });
+  });
+  function setTab(name) {
+    Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) { t.classList.toggle('on', t.getAttribute('data-tab') === name); });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-pane]'), function (p) { p.classList.toggle('hidden', p.getAttribute('data-pane') !== name); });
+  }
+
+  $('dealForm').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var side = CURRENT.side, fields = {}, missing = [];
+    CFG.fields.forEach(function (f) {
+      if (f.sides.indexOf(side) < 0) return;
+      var el = $('f_' + f.key); var v = el ? el.value.trim() : '';
+      fields[f.key] = v;
+      if (el) el.style.borderColor = '';
+      if (f.required && !v) { missing.push(labelFor(f, side)); if (el) el.style.borderColor = 'var(--bad)'; }
+    });
+    if (missing.length) { setTab('details'); toast('Please fill in: ' + missing.join(', '), true); return; }
+
+    var milestones = {};
+    Array.prototype.forEach.call(document.querySelectorAll('#msList .ms'), function (row) {
+      milestones[row.getAttribute('data-ms')] = {
+        done: row.querySelector('input[type=checkbox]').checked,
+        date: row.querySelector('input[type=date]').value,
+        note: row.querySelector('.note').value
+      };
+    });
+
+    var btn = $('saveBtn'); busy(btn, true, 'Saving…');
+    call('saveDeal', TOKEN, { deal_id: CURRENT.deal_id || '', side: side, status: $('edStatus').value, fields: fields, milestones: milestones })
+      .then(function (res) {
+        var failed = (res.sync || []).filter(function (s) { return !s.ok; }).map(function (s) { return s.target; });
+        var msg = res.isNew ? 'Deal submitted (' + res.deal_id + ').' : 'Changes saved.';
+        if (res.status && res.status !== $('edStatus').value) msg += ' Status moved to ' + res.status + '.';
+        if (failed.length) toast(msg + ' Note: sync to ' + failed.join(', ') + ' failed. The office has been logged.', true); else toast(msg);
+        return call('getDeal', TOKEN, res.deal_id).then(function (d) {
+          var tab = document.querySelector('.tab.on').getAttribute('data-tab');
+          openEditor(d); setTab(tab); refreshListQuiet();
+        });
+      })
+      .catch(function (e) { toast(e.message, true); })
+      .then(function () { busy(btn, false); });
+  });
+
+  function refreshListQuiet() { call('listDeals', TOKEN).then(function (d) { DEALS = d || []; }).catch(function () {}); }
+
+  // ---------- documents ----------
+  function renderDocs(docs) {
+    $('docList').innerHTML = docs.length ? docs.map(function (d) {
+      return '<div class="doc"><div><a href="' + esc(d.url) + '" target="_blank" rel="noopener">' + esc(d.name) + '</a><div class="muted" style="font-size:12px">' + esc(d.category) + '</div></div>' +
+        '<div class="muted" style="font-size:12px;white-space:nowrap">' + esc((d.uploaded || '').slice(0, 10)) + '</div></div>';
+    }).join('') : '<p class="muted">No documents uploaded yet.</p>';
+  }
+
+  $('uploadBtn').addEventListener('click', function () {
+    var files = Array.prototype.slice.call($('docFile').files || []);
+    if (!files.length) { toast('Choose a file first.', true); return; }
+    var big = files.filter(function (f) { return f.size > CFG.maxUploadBytes; });
+    if (big.length) { toast(big[0].name + ' is over 20 MB.', true); return; }
+    var btn = $('uploadBtn'); busy(btn, true, 'Uploading…');
+    var cat = $('docCat').value;
+    files.reduce(function (p, file) {
+      return p.then(function () {
+        return readB64(file).then(function (data) {
+          return call('uploadDocument', TOKEN, CURRENT.deal_id, { name: file.name, mimeType: file.type, data: data, category: cat });
+        }).then(renderDocs);
+      });
+    }, Promise.resolve())
+      .then(function () { $('docFile').value = ''; toast(files.length + ' file' + (files.length > 1 ? 's' : '') + ' uploaded.'); })
+      .catch(function (e) { toast(e.message, true); })
+      .then(function () { busy(btn, false); });
+  });
+
+  function readB64(file) {
+    return new Promise(function (resolve, reject) {
+      var r = new FileReader();
+      r.onload = function () { resolve(String(r.result).split(',')[1] || ''); };
+      r.onerror = function () { reject(new Error('Could not read ' + file.name)); };
+      r.readAsDataURL(file);
+    });
+  }
+})();
+</script>
+</body>
+</html>
