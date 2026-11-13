@@ -163,6 +163,11 @@
       <div style="min-width:170px"><select id="edStatus" aria-label="Deal status"></select></div>
     </div>
     <p class="muted" id="edMeta" style="margin:-4px 0 10px;font-size:13px"></p>
+    <div id="edAgentWrap" class="card hidden" style="margin-bottom:12px;padding:12px 16px">
+      <label for="edAgent" class="req">Agent on this deal</label>
+      <select id="edAgent"></select>
+      <span class="help">The deal goes under this agent: their list, their office's inventory tab, and their name in SkySlope.</span>
+    </div>
     <div class="tabs">
       <button class="tab on" data-tab="details">Deal details</button>
       <button class="tab" data-tab="milestones">Milestones <span id="msCount"></span></button>
@@ -278,9 +283,28 @@
     $('listTitle').textContent = USER.isAdmin ? 'All deals' : 'My deals';
     $('fAgent').classList.toggle('hidden', !USER.isAdmin);
     $('filters').classList.toggle('admin', !!USER.isAdmin);
+    if (USER.isAdmin) call('listAgentsForAdmin', TOKEN).then(function (a) { AGENTS = a || []; }).catch(function () {});
     show('list');
     return refreshList();
   }
+
+  var AGENTS = [];
+  function fillAgentPicker(deal) {
+    var wrap = $('edAgentWrap');
+    wrap.classList.toggle('hidden', !USER.isAdmin);
+    if (!USER.isAdmin) return;
+    var cur = deal.agent_email || '';
+    var list = AGENTS.slice();
+    if (cur && !list.some(function (a) { return a.email === cur; })) list.unshift({ name: deal.agent_name || cur, email: cur, office: '' });
+    $('edAgent').innerHTML = '<option value="">— Choose the agent —</option>' + list.map(function (a) {
+      var label = a.name + (a.office ? ' · ' + a.office : '') + (a.isAdmin ? ' (admin)' : '') + (a.email ? '' : ' (no email in Agents tab yet)');
+      return '<option value="' + esc(a.email) + '"' + (a.email ? '' : ' disabled') + (a.email === cur ? ' selected' : '') + '>' + esc(label) + '</option>';
+    }).join('');
+  }
+  $('edAgent').addEventListener('change', function () {
+    var a = AGENTS.filter(function (x) { return x.email === $('edAgent').value; })[0];
+    if (a && a.office && $('f_office')) $('f_office').value = a.office;
+  });
 
   // ---------- list ----------
   function refreshList() {
@@ -367,6 +391,7 @@
     $('edSide').textContent = side; $('edSide').className = 'badge b-' + side;
     $('edTitle').textContent = deal.deal_id ? (addrOf(deal) || ([deal.client_first, deal.client_last].filter(Boolean).join(' ') + ' (no property yet)')) : 'New ' + side.toLowerCase() + ' deal';
     $('edStatus').value = deal.status || 'Active';
+    fillAgentPicker(deal);
     $('edMeta').innerHTML = deal.deal_id
       ? esc(deal.deal_id + ' · ' + (deal.agent_name || deal.agent_email) + ' · last updated ' + (deal.updated_at || '').replace('T', ' ')) + ' &nbsp;' + skyChip(deal.skyslope_status) +
         (deal.skyslope_file ? ' <a href="' + esc(deal.skyslope_file) + '" target="_blank" rel="noopener">Open in SkySlope</a>' : '')
@@ -467,6 +492,7 @@
       if (el) el.style.borderColor = '';
       if (isReq(f, side) && !v) { missing.push(labelFor(f, side)); if (el) el.style.borderColor = 'var(--bad)'; }
     });
+    if (USER.isAdmin && !$('edAgent').value) missing.unshift('Agent on this deal');
     if (missing.length) { setTab('details'); toast('Please fill in: ' + missing.join(', '), true); return; }
 
     var milestones = {};
@@ -479,7 +505,7 @@
     });
 
     var btn = $('saveBtn'); busy(btn, true, 'Saving…');
-    call('saveDeal', TOKEN, { deal_id: CURRENT.deal_id || '', side: side, status: $('edStatus').value, fields: fields, milestones: milestones })
+    call('saveDeal', TOKEN, { deal_id: CURRENT.deal_id || '', side: side, status: $('edStatus').value, fields: fields, milestones: milestones, agent_email: USER.isAdmin ? $('edAgent').value : '' })
       .then(function (res) {
         var msg = res.isNew ? 'Deal submitted (' + res.deal_id + '). Queued for SkySlope.' : 'Changes saved.';
         if (res.status && res.status !== $('edStatus').value) msg += ' Status moved to ' + res.status + '.';
@@ -490,7 +516,7 @@
         });
       })
       .catch(function (e) { toast(e.message, true); })
-      .then(function () { busy(btn, false); });
+      .then(function () { busy(btn, false); btn.textContent = CURRENT && CURRENT.deal_id ? 'Save changes' : 'Submit deal'; });
   });
 
   function refreshListQuiet() { call('listDeals', TOKEN).then(function (d) { DEALS = d || []; }).catch(function () {}); }

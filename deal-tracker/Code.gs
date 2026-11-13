@@ -487,6 +487,22 @@ function findAgent_(email) {
   return null;
 }
 
+/** Admin only: every active agent, for the "Agent on this deal" picker. */
+function listAgentsForAdmin(token) {
+  var user = requireSession_(token);
+  if (!user.isAdmin) throw new Error('Admins only.');
+  var rows = getSpreadsheet_().getSheetByName(SHEETS.AGENTS).getDataRange().getValues();
+  var h = indexHeaders_(rows[0]);
+  var out = [];
+  for (var i = 1; i < rows.length; i++) {
+    var r = rows[i], name = String(r[h['Name']] || '').trim();
+    if (!name || String(r[h['Active']] || '').toLowerCase() === 'no') continue;
+    out.push({ name: name, email: String(r[h['Email']] || '').trim().toLowerCase(), office: String(r[h['Office']] || '').trim(),
+      isAdmin: String(r[h['Role']] || '').toLowerCase() === 'admin' });
+  }
+  return out.sort(function (a, b) { return a.isAdmin - b.isAdmin || a.name.localeCompare(b.name); });
+}
+
 /** Agent names for the co-agent picker (from the Agents tab). */
 function readSkySlopeRoster_() {
   var sheet = getSpreadsheet_().getSheetByName(SHEETS.AGENTS);
@@ -562,6 +578,19 @@ function saveDeal(token, input) {
     }
     deal.side = input.side;
     deal.updated_at = now;
+
+    // Admins can enter or reassign a deal on behalf of an agent
+    if (user.isAdmin && input.agent_email) {
+      var owner = findAgent_(String(input.agent_email).trim().toLowerCase());
+      if (!owner || !owner.active) throw new Error('That agent isn\'t active in the Agents tab.');
+      if (owner.email !== deal.agent_email) {
+        deal.agent_name = owner.name;
+        deal.agent_email = owner.email;
+        deal.skyslope_owner = owner.skyslopeName || owner.name;
+      }
+    } else if (user.isAdmin && !existing) {
+      throw new Error('Choose the agent on this deal.');
+    }
 
     var errors = [];
     FIELDS.forEach(function (f) {
@@ -1018,7 +1047,7 @@ function applyMilestoneSummary_(deal) {
 
 function diffFields_(before, after) {
   var changed = [];
-  ['side', 'status'].concat(FIELDS.map(function (f) { return f.key; })).forEach(function (k) {
+  ['side', 'status', 'agent_email'].concat(FIELDS.map(function (f) { return f.key; })).forEach(function (k) {
     if (String(before[k] || '') !== String(after[k] || '')) changed.push(k);
   });
   return changed;
