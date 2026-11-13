@@ -2,7 +2,7 @@
 
 This scheduled task picks up deals agents submit in the Deal Tracker and opens them in SkySlope through Mac's Chrome. Darwin then picks the file up from SkySlope.
 
-**Create it from the Claude desktop app** (where Chrome is connected), the same way as the other SkySlope tasks: open a new chat, paste everything in the box below, and ask Claude to "make this a scheduled task, hourly from 8 AM to 7 PM Eastern, with the Google Sheets connector." Replace `DEAL_TRACKER_SHEET_ID` with the ID of the Deal Tracker spreadsheet: the long code in its web address between `/d/` and `/edit`.
+**Create it from the Claude desktop app** (where Chrome is connected), the same way as the other SkySlope tasks: open a new chat, paste everything in the box below, and ask Claude to "make this a scheduled task, hourly from 8 AM to 7 PM Eastern, with the Google Sheets connector."
 
 For the first run, run it by hand while you watch.
 
@@ -14,7 +14,7 @@ You are opening new SkySlope files for Mac Aharoni (Regional Brokerage Manager, 
 TOOLS
 - Mac's Chrome via Claude in Chrome (mcp__claude-in-chrome__*), not the built-in browser pane. Load the `chrome-browser` skill, then the tools in ONE ToolSearch call: "select:mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__tabs_create_mcp,mcp__claude-in-chrome__tabs_close_mcp,mcp__claude-in-chrome__navigate,mcp__claude-in-chrome__computer,mcp__claude-in-chrome__read_page,mcp__claude-in-chrome__find,mcp__claude-in-chrome__get_page_text,mcp__claude-in-chrome__form_input,mcp__claude-in-chrome__javascript_tool,mcp__claude-in-chrome__browser_batch,mcp__claude-in-chrome__resize_window". Open your own tab, work only there, close it at the end. If Chrome or the extension isn't available, change nothing and push-notify Mac that the SkySlope file task couldn't run because Chrome wasn't open.
 - Never type a password or click a sign-in button, even if autofilled. If SkySlope shows a login page, stop and push-notify Mac to sign in to SkySlope in Chrome.
-- Google Sheets connector, spreadsheet DEAL_TRACKER_SHEET_ID, tab "Deals". Row 1 is the header. Read only the columns you need. Never read or write any other spreadsheet.
+- Google Sheets connector, spreadsheet 1ilmq1KVLEmaoksjN2PXffXDVGORBoA5MGbvWVa4i5VM, tab "Deals". Row 1 is the header. Read only the columns you need. Never read or write any other spreadsheet.
 
 WHICH DEALS
 Rows whose "SkySlope Status" is "Queued" (new file) or "Update Queued" (edit to an existing file). Process at most 5 per run, oldest "Updated At" first. Each row's "SkySlope Payload JSON" holds everything to type, keyed by SkySlope's own field ids. Agents may leave fields blank: type only what is there and never make anything up.
