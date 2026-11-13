@@ -12,6 +12,11 @@
  *      is written, and the SkySlope scheduled task (see SKYSLOPE_TASK.md) opens
  *      the file in SkySlope Forms + Transaction Management through Chrome.
  *      Darwin then picks the file up from SkySlope.
+ *   4. Documents an agent uploads are emailed straight into the deal's SkySlope
+ *      file (each SkySlope file has its own @skyslope.com upload address, which
+ *      the SkySlope task writes to "SkySlope Upload Email"). Nothing is stored
+ *      in Google Drive. Until the SkySlope file exists, an upload waits as a
+ *      Gmail draft and is sent by processDocumentQueue (runs every 5 minutes).
  *
  * Setup: README.md. Run `setup()` once from the Apps Script editor.
  */
@@ -25,7 +30,10 @@ var APP_NAME = 'Agent Deal Tracker';
 /** Mac's "Office Sheets" spreadsheet (inventory tabs). Override with Script Property INVENTORY_SPREADSHEET_ID. */
 var DEFAULT_INVENTORY_ID = '1-Bob1r8pXD3AkgtDJXs9-IiSWHWIwTGgS5zULBgQmXI';
 
-var SHEETS = { DEALS: 'Deals', AGENTS: 'Agents', MILESTONE_LOG: 'Milestone Log', SYNC_LOG: 'Sync Log' };
+var SHEETS = { DEALS: 'Deals', AGENTS: 'Agents', MILESTONE_LOG: 'Milestone Log', SYNC_LOG: 'Sync Log', DOCS: 'Documents' };
+var DOC_HEADERS = ['Timestamp', 'Deal ID', 'Agent Email', 'Document Type', 'File Name', 'Size KB', 'Status', 'Draft ID', 'Sent To', 'Sent At', 'Note'];
+var DOC_WAITING = 'Waiting for SkySlope file', DOC_SENT = 'Sent to SkySlope';
+var SKYSLOPE_EMAIL_RE = /^[A-Za-z0-9._%+\-]+@skyslope\.com$/i;
 
 var SIDES = ['Seller', 'Buyer', 'Tenant', 'Landlord'];
 var OFFICES = ['Dix Hills', 'Farmingdale'];
@@ -236,8 +244,8 @@ var MILESTONES = {
 
 var SYSTEM_COLUMNS_START = ['Deal ID', 'Created At', 'Updated At', 'Agent Name', 'Agent Email', 'SkySlope File Owner',
   'Side', 'Represents', 'SkySlope Type', 'Status', 'Current Milestone', 'Current Milestone Date', 'Next Milestone', 'Milestones Done',
-  'SkySlope Status', 'SkySlope File', 'SkySlope Notes'];
-var SYSTEM_COLUMNS_END = ['Milestone Summary', 'Inventory Tab', 'Inventory Result', 'Documents Folder', 'Milestones JSON', 'SkySlope Payload JSON'];
+  'SkySlope Status', 'SkySlope File', 'SkySlope Upload Email', 'SkySlope Notes'];
+var SYSTEM_COLUMNS_END = ['Milestone Summary', 'Inventory Tab', 'Inventory Result', 'Milestones JSON', 'SkySlope Payload JSON'];
 
 var MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 var SESSION_HOURS = 6;
@@ -272,10 +280,11 @@ function setup() {
   var agents = ensureSheet_(ss, SHEETS.AGENTS, ['Name', 'Email', 'PIN', 'Role', 'Active', 'Office', 'SkySlope Name']);
   ensureSheet_(ss, SHEETS.MILESTONE_LOG, ['Timestamp', 'Deal ID', 'Side', 'Property', 'Agent Email', 'Milestone', 'Change', 'Milestone Date', 'Note']);
   ensureSheet_(ss, SHEETS.SYNC_LOG, ['Timestamp', 'Deal ID', 'Target', 'Result', 'Details']);
+  ensureSheet_(ss, SHEETS.DOCS, DOC_HEADERS);
+  installDocumentTrigger_();
   agents.getRange('B:C').setNumberFormat('@');
   var props = PropertiesService.getScriptProperties();
   if (props.getProperty('INVENTORY_SPREADSHEET_ID') === null) props.setProperty('INVENTORY_SPREADSHEET_ID', DEFAULT_INVENTORY_ID);
-  if (props.getProperty('DOCS_FOLDER_ID') === null) props.setProperty('DOCS_FOLDER_ID', '');
   var hasAdmin = agents.getDataRange().getValues().some(function (r) { return String(r[3]).toLowerCase() === 'admin'; });
   if (!hasAdmin) {
     agents.appendRow(['Michael Aharoni', Session.getEffectiveUser().getEmail(), String(randomPin_()), 'Admin', 'Yes', 'Dix Hills', 'Michael Aharoni']);
@@ -289,6 +298,7 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu('Deal Tracker')
     .addItem('Set up Deal Tracker (run once)', 'setup')
     .addItem('Sync agents from Office Sheets roster', 'syncAgentsFromRoster')
+    .addItem('Send waiting documents to SkySlope now', 'processDocumentQueue')
     .addToUi();
 }
 
@@ -571,7 +581,7 @@ function saveDeal(token, input) {
     var before = existing ? existing.deal : {};
     var deal = existing ? JSON.parse(JSON.stringify(before)) : {
       deal_id: newDealId_(), created_at: now, agent_name: user.name, agent_email: user.email,
-      skyslope_owner: user.skyslopeName || user.name, skyslope_status: 'Queued', documents_folder: ''
+      skyslope_owner: user.skyslopeName || user.name, skyslope_status: 'Queued'
     };
     if (existing && before.side !== input.side && before.skyslope_status && before.skyslope_status !== 'Queued') {
       throw new Error('This deal is already in SkySlope as a ' + before.side + ' file. Ask Mac to change the side.');
@@ -880,50 +890,120 @@ function buildSkySlopePayload_(d) {
 }
 
 // ---------------------------------------------------------------------------
-// DOCUMENTS (Drive folder per deal)
+// DOCUMENTS: straight into the deal's SkySlope file by email. No Google Drive.
+// SkySlope gives every listing/transaction file its own @skyslope.com address;
+// attachments emailed there land on that file's Documents tab.
 // ---------------------------------------------------------------------------
 
 function uploadDocument(token, dealId, file) {
   var user = requireSession_(token);
   var found = findDealRow_(dealId);
   if (!found) throw new Error('Save the deal before uploading documents.');
-  assertCanAccess_(user, found.deal);
+  var deal = found.deal;
+  assertCanAccess_(user, deal);
   if (!file || !file.data) throw new Error('No file received.');
   var bytes = Utilities.base64Decode(file.data);
   if (bytes.length > MAX_UPLOAD_BYTES) throw new Error('File is larger than 20 MB.');
-  var folder = getDealFolder_(found);
-  var saved = folder.createFile(Utilities.newBlob(bytes, file.mimeType || 'application/octet-stream', file.name || 'document'));
-  if (file.category) saved.setDescription(file.category);
-  return listDocuments_(found.deal);
+  var name = String(file.name || 'document').replace(/[\r\n]/g, ' ');
+  var category = String(file.category || 'Other').replace(/[\r\n]/g, ' ');
+  var blob = Utilities.newBlob(bytes, file.mimeType || 'application/octet-stream', name);
+  var subject = docSubject_(deal, category, name);
+  var body = docBody_(deal, category, name, user);
+  var to = skySlopeEmail_(deal);
+  var row;
+  if (to) {
+    GmailApp.sendEmail(to, subject, body, { attachments: [blob], name: APP_NAME });
+    row = [isoNow_(), deal.deal_id, user.email, category, name, Math.round(bytes.length / 1024), DOC_SENT, '', to, isoNow_(), ''];
+  } else {
+    // Held as a Gmail draft (to Mac himself, never sent as is) until SkySlope has a file for this deal.
+    var draft = GmailApp.createDraft(Session.getEffectiveUser().getEmail(), subject, body, { attachments: [blob], name: APP_NAME });
+    row = [isoNow_(), deal.deal_id, user.email, category, name, Math.round(bytes.length / 1024), DOC_WAITING, draft.getId(), '', '', ''];
+  }
+  docsSheet_().appendRow(row);
+  return listDocuments_(deal);
 }
 
-function getDealFolder_(found) {
-  var deal = found.deal;
-  var id = extractDriveId_(deal.documents_folder);
-  if (id) { try { return DriveApp.getFolderById(id); } catch (e) {} }
-  var props = PropertiesService.getScriptProperties();
-  var root;
-  try { root = props.getProperty('DOCS_FOLDER_ID') ? DriveApp.getFolderById(props.getProperty('DOCS_FOLDER_ID')) : null; } catch (e) { root = null; }
-  if (!root) { root = DriveApp.createFolder(APP_NAME + ' Documents'); props.setProperty('DOCS_FOLDER_ID', root.getId()); }
-  var folder = root.createFolder(deal.deal_id + ' - ' + (shortAddress_(deal) || [deal.client_first, deal.client_last].join(' ').trim()) + ' (' + deal.side + ')');
-  try { folder.addEditor(deal.agent_email); } catch (e) {}
-  setDealCells_(deal.deal_id, { 'Documents Folder': folder.getUrl() });
-  deal.documents_folder = folder.getUrl();
-  return folder;
+/** Sends every waiting upload whose deal now has a SkySlope upload email. Runs every 5 minutes. */
+function processDocumentQueue() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return 'Busy';
+  var sent = 0, waiting = 0, errors = 0;
+  try {
+    var sheet = docsSheet_();
+    var data = sheet.getDataRange().getValues();
+    if (data.length < 2) return 'Nothing waiting.';
+    var h = indexHeaders_(data[0]);
+    var deals = {};
+    readDeals_().deals.forEach(function (d) { deals[d.deal_id] = d; });
+    for (var i = 1; i < data.length && sent < 25; i++) {
+      if (String(data[i][h['Status']]) !== DOC_WAITING) continue;
+      var deal = deals[String(data[i][h['Deal ID']])];
+      var to = deal ? skySlopeEmail_(deal) : '';
+      if (!to) { waiting++; continue; }
+      var r = i + 1;
+      try {
+        var draft = GmailApp.getDraft(String(data[i][h['Draft ID']]));
+        var msg = draft.getMessage();
+        GmailApp.sendEmail(to, msg.getSubject(), msg.getPlainBody(), { attachments: msg.getAttachments(), name: APP_NAME });
+        draft.deleteDraft();
+        sheet.getRange(r, h['Status'] + 1).setValue(DOC_SENT);
+        sheet.getRange(r, h['Sent To'] + 1).setValue(to);
+        sheet.getRange(r, h['Sent At'] + 1).setValue(isoNow_());
+        sent++;
+      } catch (e) {
+        sheet.getRange(r, h['Status'] + 1).setValue('Error');
+        sheet.getRange(r, h['Note'] + 1).setValue(String(e.message || e));
+        errors++;
+      }
+    }
+  } finally {
+    lock.releaseLock();
+  }
+  var msgOut = 'Documents: ' + sent + ' sent to SkySlope, ' + waiting + ' still waiting for a SkySlope file' + (errors ? ', ' + errors + ' errors (see Documents tab)' : '') + '.';
+  try { SpreadsheetApp.getActiveSpreadsheet().toast(msgOut, 'Deal Tracker', 10); } catch (e) {}
+  return msgOut;
+}
+
+function installDocumentTrigger_() {
+  var exists = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'processDocumentQueue'; });
+  if (!exists) ScriptApp.newTrigger('processDocumentQueue').timeBased().everyMinutes(5).create();
+}
+
+function skySlopeEmail_(deal) {
+  var e = String(deal.skyslope_email || '').trim();
+  return SKYSLOPE_EMAIL_RE.test(e) ? e : '';
+}
+
+function docSubject_(deal, category, name) {
+  return (shortAddress_(deal) || deal.deal_id) + ' - ' + category + ' - ' + name;
+}
+
+function docBody_(deal, category, name, user) {
+  return [
+    'Document uploaded through the ' + APP_NAME + '.',
+    'Deal: ' + deal.deal_id + ' (' + deal.side + ')',
+    'Property: ' + ([shortAddress_(deal), deal.city].filter(String).join(', ') || 'not entered yet'),
+    'Agent: ' + (user.name || user.email),
+    'Document type: ' + category,
+    'File: ' + name
+  ].join('\n');
+}
+
+function docsSheet_() {
+  return ensureSheet_(getSpreadsheet_(), SHEETS.DOCS, DOC_HEADERS);
 }
 
 function listDocuments_(deal) {
-  var id = extractDriveId_(deal.documents_folder);
-  if (!id) return [];
-  try {
-    var it = DriveApp.getFolderById(id).getFiles();
-    var out = [];
-    while (it.hasNext()) {
-      var f = it.next();
-      out.push({ name: f.getName(), url: f.getUrl(), category: f.getDescription() || '', uploaded: f.getDateCreated().toISOString() });
-    }
-    return out.sort(function (a, b) { return b.uploaded.localeCompare(a.uploaded); });
-  } catch (e) { return []; }
+  var sheet = getSpreadsheet_().getSheetByName(SHEETS.DOCS);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  var data = sheet.getDataRange().getDisplayValues();
+  var h = indexHeaders_(data[0]);
+  var out = [];
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][h['Deal ID']] !== deal.deal_id) continue;
+    out.push({ name: data[i][h['File Name']], category: data[i][h['Document Type']], uploaded: data[i][h['Timestamp']], status: data[i][h['Status']], sent_at: data[i][h['Sent At']] });
+  }
+  return out.sort(function (a, b) { return String(b.uploaded).localeCompare(String(a.uploaded)); });
 }
 
 // ---------------------------------------------------------------------------
@@ -958,9 +1038,9 @@ var SYSTEM_KEYS = {
   'Agent Email': 'agent_email', 'SkySlope File Owner': 'skyslope_owner', 'Side': 'side', 'Represents': 'represents',
   'SkySlope Type': 'skyslope_type', 'Status': 'status', 'Current Milestone': 'current_milestone',
   'Current Milestone Date': 'current_milestone_date', 'Next Milestone': 'next_milestone', 'Milestones Done': 'milestones_done',
-  'SkySlope Status': 'skyslope_status', 'SkySlope File': 'skyslope_file', 'SkySlope Notes': 'skyslope_notes',
+  'SkySlope Status': 'skyslope_status', 'SkySlope File': 'skyslope_file', 'SkySlope Upload Email': 'skyslope_email', 'SkySlope Notes': 'skyslope_notes',
   'Milestone Summary': 'milestone_summary', 'Inventory Tab': 'inventory_tab', 'Inventory Result': 'inventory_result',
-  'Documents Folder': 'documents_folder', 'SkySlope Payload JSON': 'skyslope_payload'
+  'SkySlope Payload JSON': 'skyslope_payload'
 };
 
 function colToKey_() {
@@ -1091,4 +1171,3 @@ function randomPin_() { return Math.floor(100000 + Math.random() * 900000); }
 function isoNow_() { return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss"); }
 function todayStr_() { return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd'); }
 function indexHeaders_(row) { var h = {}; row.forEach(function (n, i) { h[String(n).trim()] = i; }); return h; }
-function extractDriveId_(s) { var m = String(s || '').match(/[-\w]{25,}/); return m ? m[0] : ''; }

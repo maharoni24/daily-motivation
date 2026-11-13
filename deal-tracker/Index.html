@@ -183,6 +183,7 @@
       </div>
       <div data-pane="docs" class="card hidden">
         <div id="docsLocked" class="muted">Save the deal first, then upload documents here.</div>
+        <p class="muted" id="docsHelp" style="margin-top:0;font-size:13px"></p>
         <div id="docsArea" class="hidden">
           <div class="docs-upload">
             <div><label for="docCat">Document type</label>
@@ -524,9 +525,15 @@
   // ---------- documents ----------
   function renderDocs(docs) {
     $('docList').innerHTML = docs.length ? docs.map(function (d) {
-      return '<div class="doc"><div><a href="' + esc(d.url) + '" target="_blank" rel="noopener">' + esc(d.name) + '</a><div class="muted" style="font-size:12px">' + esc(d.category) + '</div></div>' +
-        '<div class="muted" style="font-size:12px;white-space:nowrap">' + esc((d.uploaded || '').slice(0, 10)) + '</div></div>';
+      var sentOk = d.status === 'Sent to SkySlope';
+      var chip = '<span class="sky ' + (sentOk ? 'ok' : d.status === 'Error' ? 'err' : 'wait') + '">' + esc(sentOk ? 'In SkySlope' : d.status === 'Error' ? 'Error: Mac has been told' : 'Waiting for SkySlope file') + '</span>';
+      return '<div class="doc"><div><b>' + esc(d.name) + '</b><div class="muted" style="font-size:12px">' + esc(d.category) + '</div></div>' +
+        '<div style="text-align:right"><div>' + chip + '</div><div class="muted" style="font-size:12px;white-space:nowrap;margin-top:4px">' + esc(String(d.sent_at || d.uploaded || '').slice(0, 10)) + '</div></div></div>';
     }).join('') : '<p class="muted">No documents uploaded yet.</p>';
+    var hasFile = CURRENT && /@skyslope\.com$/i.test(String(CURRENT.skyslope_email || ''));
+    $('docsHelp').textContent = hasFile
+      ? 'Uploads go straight into this deal\'s SkySlope file (Documents tab).'
+      : 'Uploads go straight into this deal\'s SkySlope file. The file is being opened now; anything you upload before then is sent automatically as soon as it is.';
   }
 
   $('uploadBtn').addEventListener('click', function () {
@@ -543,7 +550,7 @@
         }).then(renderDocs);
       });
     }, Promise.resolve())
-      .then(function () { $('docFile').value = ''; toast(files.length + ' file' + (files.length > 1 ? 's' : '') + ' uploaded.'); })
+      .then(function () { $('docFile').value = ''; toast(files.length + ' file' + (files.length > 1 ? 's' : '') + (/@skyslope\.com$/i.test(String(CURRENT.skyslope_email || '')) ? ' sent to SkySlope.' : ' queued for SkySlope.')); })
       .catch(function (e) { toast(e.message, true); })
       .then(function () { busy(btn, false); });
   });
