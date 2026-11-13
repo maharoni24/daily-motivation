@@ -365,12 +365,12 @@
     CURRENT = deal;
     var side = deal.side;
     $('edSide').textContent = side; $('edSide').className = 'badge b-' + side;
-    $('edTitle').textContent = deal.deal_id ? (addrOf(deal) || 'Deal') : 'New ' + side.toLowerCase() + ' deal';
+    $('edTitle').textContent = deal.deal_id ? (addrOf(deal) || ([deal.client_first, deal.client_last].filter(Boolean).join(' ') + ' (no property yet)')) : 'New ' + side.toLowerCase() + ' deal';
     $('edStatus').value = deal.status || 'Active';
     $('edMeta').innerHTML = deal.deal_id
       ? esc(deal.deal_id + ' · ' + (deal.agent_name || deal.agent_email) + ' · last updated ' + (deal.updated_at || '').replace('T', ' ')) + ' &nbsp;' + skyChip(deal.skyslope_status) +
         (deal.skyslope_file ? ' <a href="' + esc(deal.skyslope_file) + '" target="_blank" rel="noopener">Open in SkySlope</a>' : '')
-      : 'Only the address and office are required. Fill in whatever you have now and add the rest as the deal moves along.';
+      : 'Fields marked * are required. Fill in whatever else you have now and add the rest as the deal moves along.';
     $('saveBtn').textContent = deal.deal_id ? 'Save changes' : 'Submit deal';
 
     // Details
@@ -412,7 +412,8 @@
     if (isNew && v === '') v = f.default || (f.optionsBySide ? '' : '');
     var wide = f.type === 'textarea' || f.key === 'checklist_type' || f.key === 'represent_both' ? ' wide' : '';
     var lab = '<label for="' + id + '" class="' + (required ? 'req' : '') + '">' + esc(labelFor(f, side)) + '</label>';
-    var help = f.help ? '<span class="help">' + esc(f.help) + '</span>' : '';
+    var helpText = (f.helpBySide && f.helpBySide[side]) || f.help;
+    var help = helpText ? '<span class="help">' + esc(helpText) + '</span>' : '';
     var input;
     if (f.type === 'select') {
       var opts = optionsFor(f, side);

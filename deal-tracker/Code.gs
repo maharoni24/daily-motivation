@@ -88,10 +88,11 @@ var FIELDS = [
   { key: 'office_lead', col: 'Office Lead', label: 'Office lead?', type: 'select', options: ['No', 'Yes'], default: 'No', sides: ALL, section: 'SkySlope setup', sky: 'OFFICE LEAD' },
 
   // ---- Property
-  { key: 'mls_number', col: 'MLS #', label: 'MLS #', type: 'text', sides: ALL, section: 'Property', sky: 'MLS#' },
-  { key: 'street_number', col: 'Street No.', label: 'Street number', type: 'text', sides: ALL, section: 'Property', req: true, sky: 'STREET NO.' },
+  { key: 'mls_number', col: 'MLS #', label: 'MLS #', type: 'text', sides: ALL, section: 'Property', sky: 'MLS#',
+    helpBySide: { Buyer: 'No property yet? Leave this section blank and add it when you have an accepted offer.', Tenant: 'No property yet? Leave this section blank and add it once there\'s an approved application.' } },
+  { key: 'street_number', col: 'Street No.', label: 'Street number', type: 'text', sides: ALL, section: 'Property', req: LISTING_SIDES, sky: 'STREET NO.' },
   { key: 'direction', col: 'Direction', label: 'Direction', type: 'select', options: SKY_DIRECTIONS, sides: ALL, section: 'Property', sky: 'DIRECTION' },
-  { key: 'street_name', col: 'Street Name', label: 'Street name (e.g. Oak Lane)', type: 'text', sides: ALL, section: 'Property', req: true, sky: 'STREET NAME' },
+  { key: 'street_name', col: 'Street Name', label: 'Street name (e.g. Oak Lane)', type: 'text', sides: ALL, section: 'Property', req: LISTING_SIDES, sky: 'STREET NAME' },
   { key: 'unit', col: 'Unit', label: 'Unit #', type: 'text', sides: ALL, section: 'Property', sky: 'UNIT #' },
   { key: 'city', col: 'City / Town', label: 'City / town', type: 'text', sides: ALL, section: 'Property', sky: 'CITY' },
   { key: 'state', col: 'State', label: 'State', type: 'select', options: US_STATES, default: 'New York', sides: ALL, section: 'Property', sky: 'STATE' },
@@ -102,12 +103,12 @@ var FIELDS = [
   // ---- Our client
   { key: 'client_is_entity', col: 'Client Is Entity', label: 'Client is a company, trust or estate?', type: 'select', options: ['No', 'Yes'], default: 'No', sides: ALL, section: 'Your client', sky: 'Trust/company/entity checkbox' },
   { key: 'client_company', col: 'Client Company / Trust', label: 'Company / trust / estate name', type: 'text', sides: ALL, section: 'Your client', sky: 'COMPANY NAME' },
-  { key: 'client_first', col: 'Client First Name', label: 'Client first name', type: 'text', sides: ALL, section: 'Your client', sky: 'FIRST NAME',
+  { key: 'client_first', col: 'Client First Name', label: 'Client first name', type: 'text', sides: ALL, section: 'Your client', req: true, sky: 'FIRST NAME',
     labels: { Seller: 'Seller first name', Buyer: 'Buyer first name', Tenant: 'Tenant first name', Landlord: 'Landlord first name' } },
-  { key: 'client_last', col: 'Client Last Name', label: 'Client last name', type: 'text', sides: ALL, section: 'Your client', sky: 'LAST NAME',
+  { key: 'client_last', col: 'Client Last Name', label: 'Client last name', type: 'text', sides: ALL, section: 'Your client', req: true, sky: 'LAST NAME',
     labels: { Seller: 'Seller last name', Buyer: 'Buyer last name', Tenant: 'Tenant last name', Landlord: 'Landlord last name' } },
-  { key: 'client_email', col: 'Client Email', label: 'Client email (forms are sent here to sign)', type: 'email', sides: ALL, section: 'Your client', sky: 'E-MAIL' },
-  { key: 'client_phone', col: 'Client Phone', label: 'Client phone', type: 'tel', sides: ALL, section: 'Your client', sky: 'PHONE' },
+  { key: 'client_email', col: 'Client Email', label: 'Client email (forms are sent here to sign)', type: 'email', sides: ALL, section: 'Your client', req: true, sky: 'E-MAIL' },
+  { key: 'client_phone', col: 'Client Phone', label: 'Client phone', type: 'tel', sides: ALL, section: 'Your client', req: true, sky: 'PHONE' },
   { key: 'client2_first', col: 'Client 2 First Name', label: 'Second client first name', type: 'text', sides: ALL, section: 'Your client', sky: 'Additional contact' },
   { key: 'client2_last', col: 'Client 2 Last Name', label: 'Second client last name', type: 'text', sides: ALL, section: 'Your client', sky: 'Additional contact' },
   { key: 'client2_email', col: 'Client 2 Email', label: 'Second client email', type: 'email', sides: ALL, section: 'Your client', sky: 'Additional contact' },
@@ -512,7 +513,7 @@ function listDeals(token) {
       return {
         deal_id: d.deal_id, side: d.side, represents: d.represents, status: d.status,
         agent_name: d.agent_name, agent_email: d.agent_email, office: d.office,
-        address: shortAddress_(d), client_name: [d.client_first, d.client_last].filter(String).join(' ') || d.client_company,
+        address: shortAddress_(d) || ('No property yet · ' + ([d.client_first, d.client_last].filter(String).join(' ') || 'client')), client_name: [d.client_first, d.client_last].filter(String).join(' ') || d.client_company,
         current_milestone_date: d.current_milestone_date, next_milestone: d.next_milestone,
         milestones_done: d.milestones_done, milestones_total: (MILESTONES[d.side] || []).length,
         closing_date: d.closing_date || '', updated_at: d.updated_at,
@@ -657,6 +658,9 @@ function saveDeal(token, input) {
 function syncInventory_(deal) {
   if (deal.status === 'Cancelled') return { ok: true, message: 'Cancelled: inventory left as is for Mac to review.' };
   if (OFFICES.indexOf(deal.office) < 0) return { ok: false, message: 'No office chosen.' };
+  if (!deal.mls_number && !(deal.street_number && deal.street_name)) {
+    return { ok: true, message: 'No property yet: not on the inventory tabs. It is added once an address or MLS # is entered.' };
+  }
   var id = PropertiesService.getScriptProperties().getProperty('INVENTORY_SPREADSHEET_ID') || DEFAULT_INVENTORY_ID;
   var ss = SpreadsheetApp.openById(id);
   var tabs = OFFICES.map(function (o) { return ss.getSheetByName(o + ' Inventory'); });
@@ -872,7 +876,7 @@ function getDealFolder_(found) {
   var root;
   try { root = props.getProperty('DOCS_FOLDER_ID') ? DriveApp.getFolderById(props.getProperty('DOCS_FOLDER_ID')) : null; } catch (e) { root = null; }
   if (!root) { root = DriveApp.createFolder(APP_NAME + ' Documents'); props.setProperty('DOCS_FOLDER_ID', root.getId()); }
-  var folder = root.createFolder(deal.deal_id + ' - ' + shortAddress_(deal) + ' (' + deal.side + ')');
+  var folder = root.createFolder(deal.deal_id + ' - ' + (shortAddress_(deal) || [deal.client_first, deal.client_last].join(' ').trim()) + ' (' + deal.side + ')');
   try { folder.addEditor(deal.agent_email); } catch (e) {}
   setDealCells_(deal.deal_id, { 'Documents Folder': folder.getUrl() });
   deal.documents_folder = folder.getUrl();
