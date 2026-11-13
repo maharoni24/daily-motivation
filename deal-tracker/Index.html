@@ -54,8 +54,11 @@
   .badge { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; color: #fff; }
   .b-Seller { background: var(--seller); } .b-Buyer { background: var(--buyer); } .b-Tenant { background: var(--tenant); } .b-Landlord { background: var(--landlord); }
   .status { font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: #eef2ff; color: #3730a3; white-space: nowrap; }
-  .s-Closed { background: #d1fae5; color: #065f46; } .s-Cancelled { background: #fee2e2; color: #991b1b; } .s-On { background: #fef3c7; color: #92400e; }
-  .s-Under { background: #dbeafe; color: #1e40af; }
+  .s-Sold { background: #d1fae5; color: #065f46; } .s-Cancelled { background: #fee2e2; color: #991b1b; } .s-TOM { background: #fef3c7; color: #92400e; }
+  .s-Under, .s-Closing { background: #dbeafe; color: #1e40af; } .s-Accepted { background: #ede9fe; color: #5b21b6; } .s-Coming { background: #f3f4f6; color: #374151; }
+  .help { display: block; font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .sky { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 999px; background: #f3f4f6; color: #374151; white-space: nowrap; }
+  .sky.ok { background: #d1fae5; color: #065f46; } .sky.wait { background: #fef3c7; color: #92400e; } .sky.err { background: #fee2e2; color: #991b1b; }
   .bar { height: 6px; background: #e5e7eb; border-radius: 99px; overflow: hidden; grid-column: 1 / -1; }
   .bar > i { display: block; height: 100%; background: var(--ok); }
   .empty { text-align: center; padding: 40px 16px; color: var(--muted); }
@@ -250,6 +253,7 @@
       $('fStatus').insertAdjacentHTML('beforeend', '<option>' + s + '</option>');
       $('edStatus').insertAdjacentHTML('beforeend', '<option>' + s + '</option>');
     });
+    document.body.insertAdjacentHTML('beforeend', '<datalist id="rosterList">' + (cfg.roster || []).map(function (n) { return '<option value="' + esc(n) + '">'; }).join('') + '</datalist>');
     TOKEN = load('dt_token');
     try { USER = JSON.parse(load('dt_user') || 'null'); } catch (e) { USER = null; }
     if (TOKEN && USER) return enterApp();
@@ -301,12 +305,16 @@
       if (side && d.side !== side) return false;
       if (st && d.status !== st) return false;
       if (ag && d.agent_email !== ag) return false;
-      if (q && [d.property_address, d.city, d.client_name, d.deal_id, d.agent_name].join(' ').toLowerCase().indexOf(q) < 0) return false;
+      if (q && [d.address, d.city, d.client_name, d.deal_id, d.agent_name].join(' ').toLowerCase().indexOf(q) < 0) return false;
       return true;
     });
-    var c = { Active: 0, 'Under Contract': 0, Closed: 0 };
-    DEALS.forEach(function (d) { if (c[d.status] != null) c[d.status]++; });
-    $('stats').innerHTML = [['Total', DEALS.length], ['Active', c.Active], ['Under contract', c['Under Contract']], ['Closed', c.Closed]]
+    var c = { active: 0, pending: 0, sold: 0 };
+    DEALS.forEach(function (d) {
+      if (d.status === 'Active' || d.status === 'Coming Soon') c.active++;
+      else if (['Accepted Offer', 'Under Contract', 'Closing Set'].indexOf(d.status) >= 0) c.pending++;
+      else if (d.status === 'Sold') c.sold++;
+    });
+    $('stats').innerHTML = [['Total', DEALS.length], ['Active / coming soon', c.active], ['Accepted / in contract', c.pending], ['Sold / leased', c.sold]]
       .map(function (s) { return '<div class="stat"><b>' + s[1] + '</b><span>' + s[0] + '</span></div>'; }).join('');
 
     if (!rows.length) {
@@ -316,11 +324,11 @@
     $('deals').innerHTML = rows.map(function (d) {
       var done = parseInt(String(d.milestones_done || '0'), 10) || 0, total = d.milestones_total || 1;
       return '<div class="card deal" data-id="' + esc(d.deal_id) + '" tabindex="0">' +
-        '<div><span class="badge b-' + esc(d.side) + '">' + esc(d.side) + '</span> <span class="addr">' + esc(d.property_address) + (d.unit ? ' #' + esc(d.unit) : '') + '</span>' +
+        '<div><span class="badge b-' + esc(d.side) + '">' + esc(d.side) + '</span> <span class="addr">' + esc(d.address) + '</span>' +
         '<div class="meta">' + esc(d.client_name) + (d.city ? ' · ' + esc(d.city) : '') + (USER.isAdmin ? ' · ' + esc(d.agent_name || d.agent_email) : '') + ' · ' + esc(d.deal_id) + '</div></div>' +
-        '<div><span class="status s-' + esc(String(d.status).split(' ')[0]) + '">' + esc(d.status) + '</span></div>' +
+        '<div style="text-align:right"><span class="status s-' + esc(String(d.status).split(' ')[0]) + '">' + esc(d.status) + '</span><div style="margin-top:6px">' + skyChip(d.skyslope_status) + '</div></div>' +
         '<div class="meta" style="grid-column:1/-1">Next: <b style="color:#374151">' + esc(d.next_milestone || '') + '</b>' +
-        (d.current_milestone_date ? ' · Last update ' + esc(d.current_milestone_date) : '') + (d.closing_date ? ' · Closing/start ' + esc(d.closing_date) : '') + '</div>' +
+        (d.current_milestone_date ? ' · Last update ' + esc(d.current_milestone_date) : '') + (d.closing_date ? ' · Closing ' + esc(d.closing_date) : '') + '</div>' +
         '<div class="bar"><i style="width:' + Math.round(done / total * 100) + '%"></i></div></div>';
     }).join('');
   }
@@ -334,7 +342,7 @@
   });
   $('newDealBtn').addEventListener('click', function () { show('picker'); });
   Array.prototype.forEach.call(document.querySelectorAll('.side-tile'), function (b) {
-    b.addEventListener('click', function () { openEditor({ side: b.getAttribute('data-side'), status: 'Active', milestones: {} }); });
+    b.addEventListener('click', function () { openEditor({ side: b.getAttribute('data-side'), status: 'Active', milestones: {}, office: USER.office }); });
   });
 
   // ---------- editor ----------
@@ -344,14 +352,25 @@
   }
 
   function labelFor(f, side) { return (f.labels && f.labels[side]) || f.label; }
+  function optionsFor(f, side) { return f.optionsBySide ? (f.optionsBySide[side] || []) : (f.options || []); }
+  function isReq(f, side) { return f.req === true || (Array.isArray(f.req) && f.req.indexOf(side) >= 0); }
+  function skyChip(st) {
+    if (!st) return '';
+    var cls = /created|complete/i.test(st) ? 'ok' : /error|review/i.test(st) ? 'err' : 'wait';
+    return '<span class="sky ' + cls + '">SkySlope: ' + esc(st) + '</span>';
+  }
+  function addrOf(d) { return [d.street_number, d.direction, d.street_name].filter(Boolean).join(' ') + (d.unit ? ' #' + d.unit : ''); }
 
   function openEditor(deal) {
     CURRENT = deal;
     var side = deal.side;
     $('edSide').textContent = side; $('edSide').className = 'badge b-' + side;
-    $('edTitle').textContent = deal.deal_id ? (deal.property_address || 'Deal') : 'New ' + side.toLowerCase() + ' deal';
+    $('edTitle').textContent = deal.deal_id ? (addrOf(deal) || 'Deal') : 'New ' + side.toLowerCase() + ' deal';
     $('edStatus').value = deal.status || 'Active';
-    $('edMeta').textContent = deal.deal_id ? (deal.deal_id + ' · ' + (deal.agent_name || deal.agent_email) + ' · last updated ' + (deal.updated_at || '').replace('T', ' ')) : 'Fields marked * are required.';
+    $('edMeta').innerHTML = deal.deal_id
+      ? esc(deal.deal_id + ' · ' + (deal.agent_name || deal.agent_email) + ' · last updated ' + (deal.updated_at || '').replace('T', ' ')) + ' &nbsp;' + skyChip(deal.skyslope_status) +
+        (deal.skyslope_file ? ' <a href="' + esc(deal.skyslope_file) + '" target="_blank" rel="noopener">Open in SkySlope</a>' : '')
+      : 'Only the address and office are required. Fill in whatever you have now and add the rest as the deal moves along.';
     $('saveBtn').textContent = deal.deal_id ? 'Save changes' : 'Submit deal';
 
     // Details
@@ -363,7 +382,7 @@
       sec.fields.push(f);
     });
     $('detailsPane').innerHTML = sections.map(function (s) {
-      return '<fieldset><legend>' + esc(s.name) + '</legend><div class="grid">' + s.fields.map(function (f) { return fieldHtml(f, side, deal[f.key]); }).join('') + '</div></fieldset>';
+      return '<fieldset><legend>' + esc(s.name) + '</legend><div class="grid">' + s.fields.map(function (f) { return fieldHtml(f, side, deal[f.key], !deal.deal_id); }).join('') + '</div></fieldset>';
     }).join('');
 
     // Milestones
@@ -388,14 +407,19 @@
     show('editor');
   }
 
-  function fieldHtml(f, side, val) {
-    var id = 'f_' + f.key, v = val == null ? '' : val, req = f.required ? ' required' : '';
-    var wide = f.type === 'textarea' || f.key === 'property_address' || f.key === 'client_address' ? ' wide' : '';
-    var lab = '<label for="' + id + '" class="' + (f.required ? 'req' : '') + '">' + esc(labelFor(f, side)) + '</label>';
+  function fieldHtml(f, side, val, isNew) {
+    var id = 'f_' + f.key, v = val == null ? '' : val, required = isReq(f, side), req = required ? ' required' : '';
+    if (isNew && v === '') v = f.default || (f.optionsBySide ? '' : '');
+    var wide = f.type === 'textarea' || f.key === 'checklist_type' || f.key === 'represent_both' ? ' wide' : '';
+    var lab = '<label for="' + id + '" class="' + (required ? 'req' : '') + '">' + esc(labelFor(f, side)) + '</label>';
+    var help = f.help ? '<span class="help">' + esc(f.help) + '</span>' : '';
     var input;
     if (f.type === 'select') {
+      var opts = optionsFor(f, side);
       input = '<select id="' + id + '" name="' + f.key + '"' + req + '><option value="">—</option>' +
-        f.options.map(function (o) { return '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>';
+        opts.map(function (o) { return '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>';
+    } else if (f.type === 'roster') {
+      input = '<input id="' + id + '" name="' + f.key + '" list="rosterList" autocomplete="off" placeholder="Start typing a name" value="' + esc(v) + '">';
     } else if (f.type === 'textarea') {
       input = '<textarea id="' + id + '" name="' + f.key + '"' + req + '>' + esc(v) + '</textarea>';
     } else {
@@ -404,7 +428,7 @@
       var ph = f.type === 'money' ? ' placeholder="$"' : '';
       input = '<input id="' + id + '" name="' + f.key + '" type="' + type + '"' + mode + ph + req + ' value="' + esc(v) + '">';
     }
-    return '<div class="' + wide.trim() + '">' + lab + input + '</div>';
+    return '<div class="' + wide.trim() + '">' + lab + input + help + '</div>';
   }
 
   $('msList').addEventListener('change', function (ev) {
@@ -440,7 +464,7 @@
       var el = $('f_' + f.key); var v = el ? el.value.trim() : '';
       fields[f.key] = v;
       if (el) el.style.borderColor = '';
-      if (f.required && !v) { missing.push(labelFor(f, side)); if (el) el.style.borderColor = 'var(--bad)'; }
+      if (isReq(f, side) && !v) { missing.push(labelFor(f, side)); if (el) el.style.borderColor = 'var(--bad)'; }
     });
     if (missing.length) { setTab('details'); toast('Please fill in: ' + missing.join(', '), true); return; }
 
@@ -456,10 +480,9 @@
     var btn = $('saveBtn'); busy(btn, true, 'Saving…');
     call('saveDeal', TOKEN, { deal_id: CURRENT.deal_id || '', side: side, status: $('edStatus').value, fields: fields, milestones: milestones })
       .then(function (res) {
-        var failed = (res.sync || []).filter(function (s) { return !s.ok; }).map(function (s) { return s.target; });
-        var msg = res.isNew ? 'Deal submitted (' + res.deal_id + ').' : 'Changes saved.';
+        var msg = res.isNew ? 'Deal submitted (' + res.deal_id + '). Queued for SkySlope.' : 'Changes saved.';
         if (res.status && res.status !== $('edStatus').value) msg += ' Status moved to ' + res.status + '.';
-        if (failed.length) toast(msg + ' Note: sync to ' + failed.join(', ') + ' failed. The office has been logged.', true); else toast(msg);
+        if (res.inventory && !res.inventory.ok) toast(msg + ' Office inventory note: ' + res.inventory.message, true); else toast(msg);
         return call('getDeal', TOKEN, res.deal_id).then(function (d) {
           var tab = document.querySelector('.tab.on').getAttribute('data-tab');
           openEditor(d); setTab(tab); refreshListQuiet();

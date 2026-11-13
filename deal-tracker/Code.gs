@@ -1,10 +1,19 @@
 /**
- * AGENT DEAL TRACKER
- * Google Apps Script web app: agents submit, edit and update milestones on
- * Seller / Buyer / Tenant / Landlord deals. Google Sheets is the system of
- * record; every save is pushed to SkySlope, Darwin and any other webhook.
+ * AGENT DEAL TRACKER (Coldwell Banker American Homes: Dix Hills + Farmingdale)
  *
- * Setup: see README.md. Run `setup()` once from the editor.
+ * Agents submit Seller / Buyer / Tenant / Landlord deals, edit them, and check
+ * off milestones. On every save:
+ *   1. The deal is stored in the "Deals" tab of this spreadsheet. Field names
+ *      match SkySlope's new-file screens (captured 2026-11-13).
+ *   2. The deal is added to (or advanced on) the right office tab of the
+ *      "Office Sheets" inventory, with the same columns and rules as the daily
+ *      inventory sync.
+ *   3. The deal is queued for SkySlope: a ready-to-type "SkySlope Payload JSON"
+ *      is written, and the SkySlope scheduled task (see SKYSLOPE_TASK.md) opens
+ *      the file in SkySlope Forms + Transaction Management through Chrome.
+ *      Darwin then picks the file up from SkySlope.
+ *
+ * Setup: README.md. Run `setup()` once from the Apps Script editor.
  */
 
 // ---------------------------------------------------------------------------
@@ -13,249 +22,281 @@
 
 var APP_NAME = 'Agent Deal Tracker';
 
-var SHEETS = {
-  DEALS: 'Deals',
-  AGENTS: 'Agents',
-  MILESTONE_LOG: 'Milestone Log',
-  SYNC_LOG: 'Sync Log'
-};
+/** Mac's "Office Sheets" spreadsheet (inventory tabs). Override with Script Property INVENTORY_SPREADSHEET_ID. */
+var DEFAULT_INVENTORY_ID = '1-Bob1r8pXD3AkgtDJXs9-IiSWHWIwTGgS5zULBgQmXI';
+
+var SHEETS = { DEALS: 'Deals', AGENTS: 'Agents', MILESTONE_LOG: 'Milestone Log', SYNC_LOG: 'Sync Log' };
 
 var SIDES = ['Seller', 'Buyer', 'Tenant', 'Landlord'];
+var OFFICES = ['Dix Hills', 'Farmingdale'];
 
-var STATUSES = ['Active', 'Under Contract', 'Closed', 'On Hold', 'Cancelled'];
+/** Same status words as the Office Sheets inventory tabs. */
+var STATUSES = ['Coming Soon', 'Active', 'Accepted Offer', 'Under Contract', 'Closing Set', 'Sold', 'TOM', 'Cancelled'];
+var STATUS_RANK = { 'Coming Soon': 1, 'Active': 2, 'Accepted Offer': 3, 'Under Contract': 4, 'Closing Set': 5, 'Sold': 6 };
 
 var ALL = SIDES;
 var SALE = ['Seller', 'Buyer'];
 var LEASE = ['Tenant', 'Landlord'];
+var LISTING_SIDES = ['Seller', 'Landlord'];
+var CLIENT_BUYING = ['Buyer', 'Tenant'];
+
+// ---- SkySlope dropdown values, exactly as SkySlope shows them --------------
+
+var SKY_CHECKLISTS = {
+  Seller: ['Residential Co-op/Condo Closing For Listing Side Only', 'Res/Co-op/Condo Double Sided Dual Agent',
+    'Res/Co-op/Condo Double Sided Unrepresented Buyer', 'CB American Homes Commercial Sale',
+    'CB American homes Commercial Sale Both Sides Unrepresented Buyer'],
+  Buyer: ['Buyer Client', 'Res/Co-op/Condo Double Sided Dual Agent', 'CB American Homes Commercial Sale'],
+  Tenant: ['Tenant Client', 'Tenant Customer', 'Rental Closing Checklist', 'CB American Homes Commercial Lease'],
+  Landlord: ['Rental Closing Checklist For Listing', 'Rental Closing Checklist', 'CB American Homes Commercial Lease',
+    'CB American Homes Commercial Lease Both Sides Unrepresented Tenant']
+};
+
+/** SkySlope Forms BROKERAGE templates only (no personal templates such as "Yearly Forms"). */
+var SKY_TEMPLATES = {
+  Seller: ['Residential Listing', 'Co-op Condo Listing', 'Land Listing'],
+  Buyer: ['Buyer Broker Template', 'Unrepresented Buyer'],
+  Tenant: ['Tenant Representation', 'Unrepresented Tenant'],
+  Landlord: ['Rental Listing', 'Rental Listing - NYC']
+};
+
+var SKY_SOURCES = ['SOI', 'Personal Referral', 'Previous Customer', 'Corporate Referral', 'Office Lead', 'Sign',
+  'Open House', 'Advertisement', 'Prospecting', 'Farming', 'Floor Time', 'Duty Desk', 'MLS', 'Website', 'Zillow',
+  'Social Marketing', 'Direct Mail', 'Door Knocking', 'Call Capture', 'Drip Marketing', 'Expired/Withdrawn',
+  'Relocation Department', 'REO Account', 'New Home Account', 'Home Partners of America', 'Other'];
+
+var SKY_DIRECTIONS = ['N', 'E', 'S', 'W', 'NW', 'NE', 'SE', 'SW'];
+var SKY_LOAN_TYPES = ['Conventional', 'FHA', 'VA', 'Home Loan', 'Personal Loan', 'Other'];
+var US_STATES = ['New York', 'New Jersey', 'Connecticut', 'Pennsylvania', 'Florida', 'Massachusetts', 'Other'];
 
 /**
- * Every deal field. `col` is the column header in the Deals sheet (keep these
- * stable if other automations map to them). `labels` overrides the on-screen
- * label per side.
+ * Every deal field. `col` = Deals sheet header. `req` = true or list of sides.
+ * `sky` = where it goes in SkySlope (documentation for the SkySlope task).
  */
 var FIELDS = [
+  // ---- SkySlope setup
+  { key: 'office', col: 'Office', label: 'Office', type: 'select', options: OFFICES, sides: ALL, section: 'SkySlope setup', req: true, sky: 'OFFICE' },
+  { key: 'represent_both', col: 'Dual Agency', label: 'Do you (or another CBAH agent) represent BOTH sides?', type: 'select', options: ['No', 'Yes'], default: 'No', sides: ALL, section: 'SkySlope setup', sky: 'TYPE (REPRESENTATION) = Both …' },
+  { key: 'checklist_type', col: 'SkySlope Checklist Type', label: 'SkySlope checklist type', type: 'select', optionsBySide: SKY_CHECKLISTS, sides: ALL, section: 'SkySlope setup', sky: 'CHECKLIST TYPE',
+    help: 'Pick "Double Sided" if you represent both sides; "Commercial" for commercial deals.' },
+  { key: 'forms_template', col: 'SkySlope Forms Template', label: 'SkySlope brokerage template (forms package)', type: 'select', optionsBySide: SKY_TEMPLATES, sides: ALL, section: 'SkySlope setup', sky: 'Forms: template',
+    help: 'Brokerage templates only. This loads the forms that get filled and sent to your client for signature.' },
+  { key: 'seller_net_sheet', col: 'Seller Net Sheet', label: 'Create a seller net sheet?', type: 'select', options: ['Yes', 'No'], default: 'Yes', sides: ['Seller'], section: 'SkySlope setup', sky: 'Forms: Create a Seller Net Sheet' },
+  { key: 'co_agent', col: 'Co-Agent', label: 'Co-agent (CBAH agent on the deal with you)', type: 'roster', sides: ALL, section: 'SkySlope setup', sky: 'CO-BUYER AGENT' },
+  { key: 'co_agent_split', col: 'Co-Agent Split %', label: 'Your co-agent\'s share of the commission %', type: 'number', sides: ALL, section: 'SkySlope setup', sky: 'Commission Split %' },
+  { key: 'source', col: 'Source', label: 'Lead source', type: 'select', options: SKY_SOURCES, sides: ALL, section: 'SkySlope setup', sky: 'SOURCE' },
+  { key: 'office_lead', col: 'Office Lead', label: 'Office lead?', type: 'select', options: ['No', 'Yes'], default: 'No', sides: ALL, section: 'SkySlope setup', sky: 'OFFICE LEAD' },
+
   // ---- Property
-  { key: 'property_address', col: 'Property Address', label: 'Street address', type: 'text', sides: ALL, section: 'Property', required: true },
-  { key: 'unit', col: 'Unit', label: 'Unit / Apt #', type: 'text', sides: ALL, section: 'Property' },
-  { key: 'city', col: 'City', label: 'City', type: 'text', sides: ALL, section: 'Property', required: true },
-  { key: 'state', col: 'State', label: 'State', type: 'text', sides: ALL, section: 'Property', required: true },
-  { key: 'zip', col: 'Zip', label: 'Zip', type: 'text', sides: ALL, section: 'Property', required: true },
-  { key: 'county', col: 'County', label: 'County', type: 'text', sides: ALL, section: 'Property' },
-  { key: 'mls_number', col: 'MLS #', label: 'MLS #', type: 'text', sides: ALL, section: 'Property' },
-  { key: 'property_type', col: 'Property Type', label: 'Property type', type: 'select', sides: ALL, section: 'Property',
-    options: ['Single Family', 'Condo', 'Townhome', 'Multi-Family', 'Land', 'Commercial', 'Manufactured', 'Other'] },
+  { key: 'mls_number', col: 'MLS #', label: 'MLS #', type: 'text', sides: ALL, section: 'Property', sky: 'MLS#' },
+  { key: 'street_number', col: 'Street No.', label: 'Street number', type: 'text', sides: ALL, section: 'Property', req: true, sky: 'STREET NO.' },
+  { key: 'direction', col: 'Direction', label: 'Direction', type: 'select', options: SKY_DIRECTIONS, sides: ALL, section: 'Property', sky: 'DIRECTION' },
+  { key: 'street_name', col: 'Street Name', label: 'Street name (e.g. Oak Lane)', type: 'text', sides: ALL, section: 'Property', req: true, sky: 'STREET NAME' },
+  { key: 'unit', col: 'Unit', label: 'Unit #', type: 'text', sides: ALL, section: 'Property', sky: 'UNIT #' },
+  { key: 'city', col: 'City / Town', label: 'City / town', type: 'text', sides: ALL, section: 'Property', sky: 'CITY' },
+  { key: 'state', col: 'State', label: 'State', type: 'select', options: US_STATES, default: 'New York', sides: ALL, section: 'Property', sky: 'STATE' },
+  { key: 'zip', col: 'Zip', label: 'Zip code', type: 'text', sides: ALL, section: 'Property', sky: 'ZIP CODE' },
+  { key: 'county', col: 'County', label: 'County', type: 'text', sides: ALL, section: 'Property', sky: 'COUNTY' },
+  { key: 'year_built', col: 'Year Built', label: 'Year built', type: 'number', sides: ALL, section: 'Property', sky: 'YEAR BUILT' },
 
-  // ---- Client
-  { key: 'client_name', col: 'Client Name', label: 'Client name', type: 'text', sides: ALL, section: 'Client', required: true,
-    labels: { Seller: 'Seller name', Buyer: 'Buyer name', Tenant: 'Tenant name', Landlord: 'Landlord / owner name' } },
-  { key: 'client2_name', col: 'Client 2 Name', label: 'Co-client name', type: 'text', sides: ALL, section: 'Client' },
-  { key: 'client_email', col: 'Client Email', label: 'Client email', type: 'email', sides: ALL, section: 'Client', required: true },
-  { key: 'client_phone', col: 'Client Phone', label: 'Client phone', type: 'tel', sides: ALL, section: 'Client', required: true },
-  { key: 'client_address', col: 'Client Mailing Address', label: 'Client mailing address (if different)', type: 'text', sides: ALL, section: 'Client' },
-  { key: 'lead_source', col: 'Lead Source', label: 'Lead source', type: 'select', sides: ALL, section: 'Client',
-    options: ['Sphere / Referral', 'Past Client', 'Online Lead', 'Open House', 'Sign Call', 'Company Lead', 'Agent Referral', 'Social Media', 'Other'] },
+  // ---- Our client
+  { key: 'client_is_entity', col: 'Client Is Entity', label: 'Client is a company, trust or estate?', type: 'select', options: ['No', 'Yes'], default: 'No', sides: ALL, section: 'Your client', sky: 'Trust/company/entity checkbox' },
+  { key: 'client_company', col: 'Client Company / Trust', label: 'Company / trust / estate name', type: 'text', sides: ALL, section: 'Your client', sky: 'COMPANY NAME' },
+  { key: 'client_first', col: 'Client First Name', label: 'Client first name', type: 'text', sides: ALL, section: 'Your client', sky: 'FIRST NAME',
+    labels: { Seller: 'Seller first name', Buyer: 'Buyer first name', Tenant: 'Tenant first name', Landlord: 'Landlord first name' } },
+  { key: 'client_last', col: 'Client Last Name', label: 'Client last name', type: 'text', sides: ALL, section: 'Your client', sky: 'LAST NAME',
+    labels: { Seller: 'Seller last name', Buyer: 'Buyer last name', Tenant: 'Tenant last name', Landlord: 'Landlord last name' } },
+  { key: 'client_email', col: 'Client Email', label: 'Client email (forms are sent here to sign)', type: 'email', sides: ALL, section: 'Your client', sky: 'E-MAIL' },
+  { key: 'client_phone', col: 'Client Phone', label: 'Client phone', type: 'tel', sides: ALL, section: 'Your client', sky: 'PHONE' },
+  { key: 'client2_first', col: 'Client 2 First Name', label: 'Second client first name', type: 'text', sides: ALL, section: 'Your client', sky: 'Additional contact' },
+  { key: 'client2_last', col: 'Client 2 Last Name', label: 'Second client last name', type: 'text', sides: ALL, section: 'Your client', sky: 'Additional contact' },
+  { key: 'client2_email', col: 'Client 2 Email', label: 'Second client email', type: 'email', sides: ALL, section: 'Your client', sky: 'Additional contact' },
+  { key: 'client2_phone', col: 'Client 2 Phone', label: 'Second client phone', type: 'tel', sides: ALL, section: 'Your client', sky: 'Additional contact' },
 
-  // ---- Sale terms (Seller)
-  { key: 'listing_agreement_date', col: 'Listing Agreement Date', label: 'Listing agreement signed', type: 'date', sides: ['Seller', 'Landlord'], section: 'Terms' },
-  { key: 'listing_expiration', col: 'Listing Expiration', label: 'Listing expiration', type: 'date', sides: ['Seller', 'Landlord'], section: 'Terms' },
-  { key: 'list_price', col: 'List Price', label: 'List price', type: 'money', sides: ['Seller'], section: 'Terms' },
-  { key: 'buyer_agreement_date', col: 'Buyer Agreement Date', label: 'Buyer agreement signed', type: 'date', sides: ['Buyer'], section: 'Terms' },
-  { key: 'buyer_agreement_expiration', col: 'Buyer Agreement Expiration', label: 'Buyer agreement expiration', type: 'date', sides: ['Buyer'], section: 'Terms' },
-  { key: 'price', col: 'Sale / Purchase Price', label: 'Contract price', type: 'money', sides: SALE, section: 'Terms',
-    labels: { Seller: 'Accepted sale price', Buyer: 'Purchase price' } },
-  { key: 'contract_date', col: 'Contract / Effective Date', label: 'Contract effective date', type: 'date', sides: SALE, section: 'Terms' },
-  { key: 'closing_date', col: 'Closing Date', label: 'Scheduled closing date', type: 'date', sides: SALE, section: 'Terms' },
-  { key: 'earnest_money', col: 'Earnest Money', label: 'Earnest money', type: 'money', sides: SALE, section: 'Terms' },
-  { key: 'option_fee', col: 'Option Fee', label: 'Option / due-diligence fee', type: 'money', sides: SALE, section: 'Terms' },
-  { key: 'option_end_date', col: 'Option Period End', label: 'Option / inspection period ends', type: 'date', sides: SALE, section: 'Terms' },
-  { key: 'financing_type', col: 'Financing Type', label: 'Financing type', type: 'select', sides: SALE, section: 'Terms',
-    options: ['Conventional', 'FHA', 'VA', 'USDA', 'Cash', 'Jumbo', 'Seller Finance', 'Other'] },
-  { key: 'appraisal_deadline', col: 'Appraisal Deadline', label: 'Appraisal deadline', type: 'date', sides: SALE, section: 'Terms' },
-  { key: 'financing_deadline', col: 'Financing Deadline', label: 'Financing contingency deadline', type: 'date', sides: SALE, section: 'Terms' },
-  { key: 'seller_concessions', col: 'Seller Concessions', label: 'Seller concessions', type: 'money', sides: SALE, section: 'Terms' },
+  // ---- Listing / terms
+  { key: 'list_price', col: 'List Price', label: 'List price', type: 'money', sides: ALL, section: 'Price & dates', sky: 'LIST PRICE',
+    labels: { Landlord: 'Listed monthly rent', Tenant: 'Advertised monthly rent', Buyer: 'List price (from MLS)' } },
+  { key: 'listing_date', col: 'Listing Date', label: 'Listing agreement date', type: 'date', sides: LISTING_SIDES, section: 'Price & dates' },
+  { key: 'listing_expiration', col: 'Listing Expiration', label: 'Listing expiration date', type: 'date', sides: LISTING_SIDES, section: 'Price & dates', sky: 'LISTING EXPIRE DATE' },
+  { key: 'price', col: 'Sale Price / Rent', label: 'Accepted price', type: 'money', sides: ALL, section: 'Price & dates', sky: 'SALE PRICE',
+    labels: { Seller: 'Accepted sale price (once you have an offer)', Buyer: 'Accepted purchase price', Tenant: 'Monthly rent (agreed)', Landlord: 'Monthly rent (agreed with tenant)' } },
+  { key: 'acceptance_date', col: 'Acceptance Date', label: 'Offer accepted date', type: 'date', sides: ALL, section: 'Price & dates', sky: 'ACCEPTANCE DATE',
+    labels: { Tenant: 'Application approved date', Landlord: 'Application approved date' } },
+  { key: 'contract_date', col: 'Contract Signed Date', label: 'Contract fully signed date', type: 'date', sides: SALE, section: 'Price & dates', sky: 'Inventory "UC Date"' },
+  { key: 'closing_date', col: 'Closing Date', label: 'Closing date (projected until scheduled)', type: 'date', sides: ALL, section: 'Price & dates', sky: 'CLOSING DATE',
+    labels: { Tenant: 'Lease start / move-in date', Landlord: 'Lease start / move-in date' } },
+  { key: 'closing_time', col: 'Closing Time', label: 'Closing time (once scheduled, e.g. 11:30am)', type: 'text', sides: SALE, section: 'Price & dates' },
+  { key: 'lease_end', col: 'Lease End', label: 'Lease end date', type: 'date', sides: LEASE, section: 'Price & dates' },
+  { key: 'security_deposit', col: 'Security Deposit', label: 'Security deposit', type: 'money', sides: LEASE, section: 'Price & dates' },
+  { key: 'renewal_option', col: 'Renewal Option', label: 'Renewal option in lease?', type: 'select', options: ['No', 'Yes'], sides: LEASE, section: 'Price & dates', sky: 'Renewal Option' },
+  { key: 'purchase_option', col: 'Purchase Option', label: 'Purchase option in lease?', type: 'select', options: ['No', 'Yes'], sides: LEASE, section: 'Price & dates', sky: 'Purchase Option' },
+  { key: 'deposit_amount', col: 'Down Payment / Deposit', label: 'Contract deposit (down payment held in escrow)', type: 'money', sides: SALE, section: 'Price & dates', sky: 'DEPOSIT AMOUNT' },
+  { key: 'brokerage_holds_deposit', col: 'Brokerage Holds Deposit', label: 'Is our brokerage holding the deposit?', type: 'select', options: ['No', 'Yes'], default: 'No', sides: ALL, section: 'Price & dates', sky: 'Will Brokerage Hold Earnest Money?' },
 
-  // ---- Lease terms
-  { key: 'monthly_rent', col: 'Monthly Rent', label: 'Monthly rent', type: 'money', sides: LEASE, section: 'Terms',
-    labels: { Landlord: 'Monthly rent (listed / leased)' } },
-  { key: 'application_date', col: 'Application Date', label: 'Application date', type: 'date', sides: LEASE, section: 'Terms' },
-  { key: 'lease_start', col: 'Lease Start', label: 'Lease start', type: 'date', sides: LEASE, section: 'Terms' },
-  { key: 'lease_end', col: 'Lease End', label: 'Lease end', type: 'date', sides: LEASE, section: 'Terms' },
-  { key: 'lease_term_months', col: 'Lease Term (Months)', label: 'Lease term (months)', type: 'number', sides: LEASE, section: 'Terms' },
-  { key: 'security_deposit', col: 'Security Deposit', label: 'Security deposit', type: 'money', sides: LEASE, section: 'Terms' },
-  { key: 'pets', col: 'Pets', label: 'Pets', type: 'select', sides: LEASE, section: 'Terms', options: ['No', 'Yes'] },
-  { key: 'property_management', col: 'Property Management', label: 'Service type', type: 'select', sides: ['Landlord'], section: 'Terms',
-    options: ['Lease only', 'Lease & manage'] },
+  // ---- Commission
+  { key: 'listing_comm_pct', col: 'Listing Commission %', label: 'Listing-side commission %', type: 'number', sides: ALL, section: 'Commission', sky: 'LISTING COMMISSION (%)' },
+  { key: 'listing_comm_amt', col: 'Listing Commission $', label: 'Listing-side commission $ (if flat)', type: 'money', sides: ALL, section: 'Commission', sky: 'LISTING COMMISSION ($)' },
+  { key: 'sale_comm_pct', col: 'Buyer-Side Commission %', label: 'Buyer/tenant-side commission %', type: 'number', sides: ALL, section: 'Commission', sky: 'SALE COMMISSION (%)' },
+  { key: 'sale_comm_amt', col: 'Buyer-Side Commission $', label: 'Buyer/tenant-side commission $ (if flat)', type: 'money', sides: ALL, section: 'Commission', sky: 'SALE COMMISSION ($)' },
+  { key: 'personal_deal', col: 'Personal Deal', label: 'Personal deal (you or family are the client)?', type: 'select', options: ['No', 'Yes'], default: 'No', sides: ALL, section: 'Commission', sky: 'PERSONAL DEAL' },
+  { key: 'referral_type', col: 'Referral Type', label: 'Referral fee owed?', type: 'select', options: ['No Referral', 'External', 'Internal'], default: 'No Referral', sides: ALL, section: 'Commission', sky: 'REFERRAL TYPE' },
+  { key: 'referral_agent', col: 'Referral Agent', label: 'Referral agent', type: 'text', sides: ALL, section: 'Commission', sky: 'REFERRAL AGENT' },
+  { key: 'referral_brokerage', col: 'Referral Brokerage', label: 'Referral brokerage', type: 'text', sides: ALL, section: 'Commission', sky: 'REFERRAL BROKERAGE NAME' },
+  { key: 'referral_pct', col: 'Referral %', label: 'Referral %', type: 'number', sides: ALL, section: 'Commission', sky: 'REFERRAL AMOUNT (%)' },
+  { key: 'referral_amt', col: 'Referral $', label: 'Referral $ (if flat)', type: 'money', sides: ALL, section: 'Commission', sky: 'REFERRAL AMOUNT ($)' },
+  { key: 'commission_notes', col: 'Commission Notes', label: 'Anything else about the commission', type: 'textarea', sides: ALL, section: 'Commission', sky: 'ADDITIONAL COMMISSION BREAKDOWN INFO' },
 
-  // ---- Compensation
-  { key: 'commission_pct', col: 'Commission %', label: 'Commission %', type: 'number', sides: ALL, section: 'Compensation' },
-  { key: 'commission_flat', col: 'Commission Flat $', label: 'Commission flat $ (if not %)', type: 'money', sides: ALL, section: 'Compensation' },
-  { key: 'other_side_comp', col: 'Other-Side Compensation', label: 'Compensation offered to other side', type: 'text', sides: ALL, section: 'Compensation' },
-  { key: 'referral_fee', col: 'Referral Fee', label: 'Referral fee owed (% or $, to whom)', type: 'text', sides: ALL, section: 'Compensation' },
-  { key: 'co_agent', col: 'Co-Agent / Split', label: 'Co-agent & split', type: 'text', sides: ALL, section: 'Compensation' },
+  // ---- Other side
+  { key: 'other_first', col: 'Other Party First Name', label: 'Other party first name', type: 'text', sides: ALL, section: 'Other side', sky: 'Seller/Purchaser tab',
+    labels: { Seller: 'Buyer first name', Buyer: 'Seller first name', Tenant: 'Landlord first name', Landlord: 'Tenant first name' } },
+  { key: 'other_last', col: 'Other Party Last Name', label: 'Other party last name', type: 'text', sides: ALL, section: 'Other side', sky: 'Seller/Purchaser tab',
+    labels: { Seller: 'Buyer last name', Buyer: 'Seller last name (or company)', Tenant: 'Landlord last name (or company)', Landlord: 'Tenant last name' } },
+  { key: 'other_email', col: 'Other Party Email', label: 'Other party email', type: 'email', sides: ALL, section: 'Other side' },
+  { key: 'other_phone', col: 'Other Party Phone', label: 'Other party phone', type: 'tel', sides: ALL, section: 'Other side' },
+  { key: 'other_agent_first', col: 'Other Agent First Name', label: 'Other side\'s agent first name', type: 'text', sides: ALL, section: 'Other side', sky: 'AGENT REPRESENTING OTHER SIDE (required on that tab)' },
+  { key: 'other_agent_last', col: 'Other Agent Last Name', label: 'Other side\'s agent last name', type: 'text', sides: ALL, section: 'Other side', sky: 'AGENT REPRESENTING OTHER SIDE (required on that tab)' },
+  { key: 'other_brokerage', col: 'Other Brokerage', label: 'Other side\'s brokerage', type: 'text', sides: ALL, section: 'Other side', sky: 'Company' },
+  { key: 'other_agent_email', col: 'Other Agent Email', label: 'Other agent email', type: 'email', sides: ALL, section: 'Other side' },
+  { key: 'other_agent_phone', col: 'Other Agent Phone', label: 'Other agent phone', type: 'tel', sides: ALL, section: 'Other side' },
 
-  // ---- Other parties
-  { key: 'other_party_name', col: 'Other Party Name', label: 'Other party name', type: 'text', sides: ALL, section: 'Other Parties',
-    labels: { Seller: 'Buyer name', Buyer: 'Seller name', Tenant: 'Landlord / property manager', Landlord: 'Tenant name' } },
-  { key: 'other_agent_name', col: 'Other Agent', label: 'Other agent', type: 'text', sides: ALL, section: 'Other Parties' },
-  { key: 'other_agent_brokerage', col: 'Other Brokerage', label: 'Other brokerage', type: 'text', sides: ALL, section: 'Other Parties' },
-  { key: 'other_agent_email', col: 'Other Agent Email', label: 'Other agent email', type: 'email', sides: ALL, section: 'Other Parties' },
-  { key: 'other_agent_phone', col: 'Other Agent Phone', label: 'Other agent phone', type: 'tel', sides: ALL, section: 'Other Parties' },
-  { key: 'title_company', col: 'Title / Escrow Company', label: 'Title / escrow company', type: 'text', sides: SALE, section: 'Other Parties' },
-  { key: 'title_contact', col: 'Escrow Officer', label: 'Escrow officer (name, email, phone)', type: 'text', sides: SALE, section: 'Other Parties' },
-  { key: 'lender_name', col: 'Lender', label: 'Lender', type: 'text', sides: SALE, section: 'Other Parties' },
-  { key: 'loan_officer', col: 'Loan Officer', label: 'Loan officer (name, email, phone)', type: 'text', sides: SALE, section: 'Other Parties' },
+  // ---- Attorneys, lender, title
+  { key: 'client_attorney_name', col: 'Client Attorney', label: 'Your client\'s attorney (first & last)', type: 'text', sides: ALL, section: 'Attorneys, lender & title', sky: 'Attorney (required on that tab)' },
+  { key: 'client_attorney_firm', col: 'Client Attorney Firm', label: 'Attorney\'s firm', type: 'text', sides: ALL, section: 'Attorneys, lender & title' },
+  { key: 'client_attorney_phone', col: 'Client Attorney Phone', label: 'Attorney phone', type: 'tel', sides: ALL, section: 'Attorneys, lender & title' },
+  { key: 'client_attorney_email', col: 'Client Attorney Email', label: 'Attorney email', type: 'email', sides: ALL, section: 'Attorneys, lender & title' },
+  { key: 'other_attorney_name', col: 'Other Attorney', label: 'Other side\'s attorney (first & last)', type: 'text', sides: ALL, section: 'Attorneys, lender & title' },
+  { key: 'other_attorney_firm', col: 'Other Attorney Firm', label: 'Their firm', type: 'text', sides: ALL, section: 'Attorneys, lender & title' },
+  { key: 'other_attorney_phone', col: 'Other Attorney Phone', label: 'Their phone', type: 'tel', sides: ALL, section: 'Attorneys, lender & title' },
+  { key: 'other_attorney_email', col: 'Other Attorney Email', label: 'Their email', type: 'email', sides: ALL, section: 'Attorneys, lender & title' },
+  { key: 'cash_deal', col: 'Cash Deal', label: 'Cash deal (no lender)?', type: 'select', options: ['No', 'Yes'], sides: SALE, section: 'Attorneys, lender & title', sky: 'N/A Cash Deal' },
+  { key: 'loan_type', col: 'Loan Type', label: 'Type of loan', type: 'select', options: SKY_LOAN_TYPES, sides: SALE, section: 'Attorneys, lender & title', sky: 'Type of Loan' },
+  { key: 'loan_amount', col: 'Loan Amount', label: 'Loan amount', type: 'money', sides: SALE, section: 'Attorneys, lender & title', sky: 'Loan Amount' },
+  { key: 'lender_company', col: 'Lender', label: 'Lender company', type: 'text', sides: SALE, section: 'Attorneys, lender & title', sky: 'Lender Company' },
+  { key: 'loan_officer', col: 'Loan Officer', label: 'Loan officer (first & last)', type: 'text', sides: SALE, section: 'Attorneys, lender & title' },
+  { key: 'loan_officer_phone', col: 'Loan Officer Phone', label: 'Loan officer phone', type: 'tel', sides: SALE, section: 'Attorneys, lender & title' },
+  { key: 'loan_officer_email', col: 'Loan Officer Email', label: 'Loan officer email', type: 'email', sides: SALE, section: 'Attorneys, lender & title' },
+  { key: 'title_company', col: 'Title Company', label: 'Title company', type: 'text', sides: SALE, section: 'Attorneys, lender & title', sky: 'Title tab' },
+  { key: 'title_contact', col: 'Title Contact', label: 'Title contact (name, phone, email)', type: 'text', sides: SALE, section: 'Attorneys, lender & title' },
 
   // ---- Notes
-  { key: 'notes', col: 'Notes', label: 'Notes for the office / transaction coordinator', type: 'textarea', sides: ALL, section: 'Notes' }
+  { key: 'notes', col: 'Notes', label: 'Notes for the office', type: 'textarea', sides: ALL, section: 'Notes' }
 ];
 
-/** Milestone checklists per side, in the order they normally happen. */
+/** Milestones follow how a Long Island deal actually runs (attorney state). */
 var MILESTONES = {
   Seller: [
     { key: 'listing_signed', label: 'Listing agreement signed' },
-    { key: 'listed_live', label: 'Active on MLS' },
-    { key: 'under_contract', label: 'Offer accepted / under contract' },
-    { key: 'em_received', label: 'Earnest money received by title' },
-    { key: 'inspection', label: 'Inspection completed' },
-    { key: 'option_ends', label: 'Option / due-diligence period ended' },
-    { key: 'appraisal', label: 'Appraisal completed' },
-    { key: 'financing', label: 'Buyer loan approved' },
+    { key: 'coming_soon', label: 'Coming Soon on MLS', status: 'Coming Soon' },
+    { key: 'listed_live', label: 'Active on MLS', status: 'Active' },
+    { key: 'accepted_offer', label: 'Accepted offer', status: 'Accepted Offer' },
+    { key: 'inspection', label: 'Buyer\'s inspection done' },
+    { key: 'contract_signed', label: 'Contract fully signed', status: 'Under Contract' },
+    { key: 'appraisal', label: 'Appraisal done' },
+    { key: 'commitment', label: 'Buyer\'s mortgage commitment' },
     { key: 'clear_to_close', label: 'Clear to close' },
-    { key: 'closed', label: 'Closed & funded' }
+    { key: 'closing_scheduled', label: 'Closing scheduled', status: 'Closing Set' },
+    { key: 'closed', label: 'Closed', status: 'Sold' }
   ],
   Buyer: [
-    { key: 'buyer_agreement', label: 'Buyer agreement signed' },
+    { key: 'buyer_agreement', label: 'Buyer agreement / agency disclosure signed' },
     { key: 'preapproval', label: 'Pre-approval / proof of funds received' },
     { key: 'offer_submitted', label: 'Offer submitted' },
-    { key: 'under_contract', label: 'Offer accepted / under contract' },
-    { key: 'em_delivered', label: 'Earnest money delivered' },
-    { key: 'inspection', label: 'Inspection completed' },
-    { key: 'option_ends', label: 'Option / due-diligence period ended' },
-    { key: 'appraisal', label: 'Appraisal completed' },
-    { key: 'financing', label: 'Loan approved' },
+    { key: 'accepted_offer', label: 'Accepted offer', status: 'Accepted Offer' },
+    { key: 'inspection', label: 'Inspection done' },
+    { key: 'contract_signed', label: 'Contract fully signed', status: 'Under Contract' },
+    { key: 'deposit_delivered', label: 'Down payment delivered to seller\'s attorney' },
+    { key: 'appraisal', label: 'Appraisal done' },
+    { key: 'commitment', label: 'Mortgage commitment' },
     { key: 'clear_to_close', label: 'Clear to close' },
-    { key: 'final_walkthrough', label: 'Final walkthrough' },
-    { key: 'closed', label: 'Closed & funded' }
+    { key: 'closing_scheduled', label: 'Closing scheduled', status: 'Closing Set' },
+    { key: 'final_walkthrough', label: 'Final walk-through' },
+    { key: 'closed', label: 'Closed', status: 'Sold' }
   ],
   Tenant: [
-    { key: 'rep_agreement', label: 'Tenant representation agreement signed' },
+    { key: 'rep_agreement', label: 'Tenant agreement / agency disclosure signed' },
     { key: 'showings', label: 'Showings started' },
     { key: 'application', label: 'Application submitted' },
-    { key: 'approved', label: 'Application approved' },
-    { key: 'lease_signed', label: 'Lease signed' },
+    { key: 'approved', label: 'Application approved', status: 'Accepted Offer' },
+    { key: 'lease_signed', label: 'Lease signed', status: 'Under Contract' },
     { key: 'deposit_paid', label: 'Deposit & first month paid' },
-    { key: 'move_in', label: 'Move-in / keys delivered' }
+    { key: 'move_in', label: 'Move-in / keys delivered', status: 'Sold' }
   ],
   Landlord: [
-    { key: 'listing_signed', label: 'Lease listing agreement signed' },
-    { key: 'listed_live', label: 'Active on MLS' },
+    { key: 'listing_signed', label: 'Rental listing agreement signed' },
+    { key: 'coming_soon', label: 'Coming Soon on MLS', status: 'Coming Soon' },
+    { key: 'listed_live', label: 'Active on MLS', status: 'Active' },
     { key: 'application', label: 'Application received' },
-    { key: 'screening', label: 'Tenant screened & approved' },
-    { key: 'lease_signed', label: 'Lease signed' },
+    { key: 'screening', label: 'Tenant approved', status: 'Accepted Offer' },
+    { key: 'lease_signed', label: 'Lease signed', status: 'Under Contract' },
     { key: 'deposit_collected', label: 'Deposit & first month collected' },
-    { key: 'move_in', label: 'Move-in / keys delivered' }
+    { key: 'move_in', label: 'Move-in / keys delivered', status: 'Sold' }
   ]
 };
 
-/** Milestones that automatically move the deal status forward. */
-var STATUS_TRIGGERS = {
-  under_contract: 'Under Contract',
-  lease_signed: 'Under Contract',
-  closed: 'Closed',
-  move_in: 'Closed'
-};
-
-var SYSTEM_COLUMNS_START = [
-  'Deal ID', 'Created At', 'Updated At', 'Agent Name', 'Agent Email', 'Side', 'Status',
-  'Current Milestone', 'Current Milestone Date', 'Next Milestone', 'Milestones Done'
-];
-var SYSTEM_COLUMNS_END = ['Milestone Summary', 'Milestones JSON', 'Documents Folder', 'Last Sync Result'];
+var SYSTEM_COLUMNS_START = ['Deal ID', 'Created At', 'Updated At', 'Agent Name', 'Agent Email', 'SkySlope File Owner',
+  'Side', 'Represents', 'SkySlope Type', 'Status', 'Current Milestone', 'Current Milestone Date', 'Next Milestone', 'Milestones Done',
+  'SkySlope Status', 'SkySlope File', 'SkySlope Notes'];
+var SYSTEM_COLUMNS_END = ['Milestone Summary', 'Inventory Tab', 'Inventory Result', 'Documents Folder', 'Milestones JSON', 'SkySlope Payload JSON'];
 
 var MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 var SESSION_HOURS = 6;
+var NEW_ROW_COLOR = '#fff8bf';
 
 // ---------------------------------------------------------------------------
 // WEB APP ENTRY
 // ---------------------------------------------------------------------------
 
 function doGet() {
-  return HtmlService.createTemplateFromFile('Index')
-    .evaluate()
+  return HtmlService.createTemplateFromFile('Index').evaluate()
     .setTitle(APP_NAME)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
-/** Everything the front end needs to build the forms. */
 function getAppConfig() {
   return {
-    appName: APP_NAME,
-    sides: SIDES,
-    statuses: STATUSES,
-    fields: FIELDS,
-    milestones: MILESTONES,
-    maxUploadBytes: MAX_UPLOAD_BYTES
+    appName: APP_NAME, sides: SIDES, statuses: STATUSES, offices: OFFICES,
+    fields: FIELDS, milestones: MILESTONES, roster: readSkySlopeRoster_(), maxUploadBytes: MAX_UPLOAD_BYTES
   };
 }
 
 // ---------------------------------------------------------------------------
-// SETUP (run once from the Apps Script editor)
+// SETUP
 // ---------------------------------------------------------------------------
 
 function setup() {
   var ss = getSpreadsheet_();
   formatDealColumns_(ensureSheet_(ss, SHEETS.DEALS, dealHeaders_()));
-  var agents = ensureSheet_(ss, SHEETS.AGENTS, ['Name', 'Email', 'PIN', 'Role', 'Active', 'Darwin Agent ID', 'SkySlope Agent ID']);
-  ensureSheet_(ss, SHEETS.MILESTONE_LOG, ['Timestamp', 'Deal ID', 'Side', 'Property Address', 'Agent Email', 'Milestone', 'Change', 'Milestone Date', 'Note']);
-  ensureSheet_(ss, SHEETS.SYNC_LOG, ['Timestamp', 'Deal ID', 'Event', 'Target', 'HTTP Status', 'Response (first 500 chars)']);
-
+  var agents = ensureSheet_(ss, SHEETS.AGENTS, ['Name', 'Email', 'PIN', 'Role', 'Active', 'Office', 'SkySlope Name']);
+  ensureSheet_(ss, SHEETS.MILESTONE_LOG, ['Timestamp', 'Deal ID', 'Side', 'Property', 'Agent Email', 'Milestone', 'Change', 'Milestone Date', 'Note']);
+  ensureSheet_(ss, SHEETS.SYNC_LOG, ['Timestamp', 'Deal ID', 'Target', 'Result', 'Details']);
+  agents.getRange('C:C').setNumberFormat('@');
   if (agents.getLastRow() < 2) {
-    var me = Session.getEffectiveUser().getEmail();
-    agents.appendRow(['Broker / Admin', me, String(randomPin_()), 'Admin', 'Yes', '', '']);
+    agents.appendRow(['Michael Aharoni', Session.getEffectiveUser().getEmail(), String(randomPin_()), 'Admin', 'Yes', 'Dix Hills', 'Michael Aharoni']);
   }
-  agents.getRange('C:C').setNumberFormat('@'); // keep PIN leading zeros
-
   var props = PropertiesService.getScriptProperties();
-  ['SKYSLOPE_WEBHOOK_URL', 'DARWIN_WEBHOOK_URL', 'EXTRA_WEBHOOK_URLS', 'WEBHOOK_SECRET', 'DOCS_FOLDER_ID'].forEach(function (k) {
-    if (props.getProperty(k) === null) props.setProperty(k, '');
-  });
-
-  Logger.log('Setup complete. Open the "Agents" tab to add your agents and their PINs.');
+  if (props.getProperty('INVENTORY_SPREADSHEET_ID') === null) props.setProperty('INVENTORY_SPREADSHEET_ID', DEFAULT_INVENTORY_ID);
+  if (props.getProperty('DOCS_FOLDER_ID') === null) props.setProperty('DOCS_FOLDER_ID', '');
+  Logger.log('Setup complete. Fill in the Agents tab (Office + SkySlope Name exactly as SkySlope shows it).');
 }
 
-/** Adds any new columns (e.g. after you add a field) without touching data. */
 function upgradeColumns() {
   formatDealColumns_(ensureSheet_(getSpreadsheet_(), SHEETS.DEALS, dealHeaders_()));
 }
 
-/** Text columns stay text (so zip 07001 doesn't become 7001). */
 function formatDealColumns_(sheet) {
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   var textCols = ['Deal ID', 'Agent Email'];
-  FIELDS.forEach(function (f) { if (['text', 'tel', 'email', 'textarea', 'select'].indexOf(f.type) >= 0) textCols.push(f.col); });
+  FIELDS.forEach(function (f) { if (['money', 'number', 'date'].indexOf(f.type) < 0) textCols.push(f.col); });
   headers.forEach(function (h, i) {
     if (textCols.indexOf(h) >= 0) sheet.getRange(2, i + 1, sheet.getMaxRows() - 1, 1).setNumberFormat('@');
   });
-  var w = headers.indexOf('Milestone Summary');
-  if (w >= 0) sheet.setColumnWidth(w + 1, 320);
-}
-
-/** Sends a sample payload to every configured webhook so you can map fields. */
-function sendTestWebhook() {
-  var sample = { deal_id: 'TEST-0001', side: 'Buyer', status: 'Under Contract', property_address: '123 Main St',
-    city: 'Anytown', state: 'TX', zip: '75001', client_name: 'Test Client', agent_email: 'agent@example.com' };
-  var results = pushToIntegrations_('deal.test', sample, { changed_fields: [], milestone_changes: [] });
-  Logger.log(JSON.stringify(results, null, 2));
 }
 
 // ---------------------------------------------------------------------------
 // AUTH
 // ---------------------------------------------------------------------------
 
-/**
- * If the agent is signed into a Google account the script can see (same
- * Workspace domain), log them straight in. Otherwise the UI asks for a PIN.
- */
 function tryAutoLogin() {
   var email = '';
   try { email = (Session.getActiveUser().getEmail() || '').toLowerCase(); } catch (e) {}
@@ -269,12 +310,10 @@ function login(email, pin) {
   email = String(email || '').trim().toLowerCase();
   pin = String(pin || '').trim();
   if (!email || !pin) throw new Error('Enter your email and PIN.');
-
   var cache = CacheService.getScriptCache();
   var failKey = 'fail_' + email;
   var fails = Number(cache.get(failKey) || 0);
-  if (fails >= 5) throw new Error('Too many attempts. Try again in 15 minutes or ask your broker to reset your PIN.');
-
+  if (fails >= 5) throw new Error('Too many attempts. Try again in 15 minutes or ask Mac to reset your PIN.');
   var agent = findAgent_(email);
   if (!agent || !agent.active || agent.pin !== pin) {
     cache.put(failKey, String(fails + 1), 15 * 60);
@@ -291,7 +330,7 @@ function logout(token) {
 
 function startSession_(agent) {
   var token = Utilities.getUuid();
-  var session = { email: agent.email, name: agent.name, isAdmin: agent.isAdmin };
+  var session = { email: agent.email, name: agent.name, isAdmin: agent.isAdmin, office: agent.office, skyslopeName: agent.skyslopeName };
   CacheService.getScriptCache().put('sess_' + token, JSON.stringify(session), SESSION_HOURS * 3600);
   return { token: token, user: session };
 }
@@ -307,40 +346,52 @@ function findAgent_(email) {
   if (!sheet) throw new Error('Run setup() first.');
   var rows = sheet.getDataRange().getValues();
   var h = indexHeaders_(rows[0]);
+  var cell = function (r, name) { return h[name] != null ? String(r[h[name]] || '').trim() : ''; };
   for (var i = 1; i < rows.length; i++) {
-    var r = rows[i];
-    if (String(r[h['Email']]).trim().toLowerCase() === email) {
+    if (cell(rows[i], 'Email').toLowerCase() === email) {
+      var r = rows[i];
       return {
-        name: String(r[h['Name']] || '').trim(),
-        email: email,
-        pin: String(r[h['PIN']] || '').trim(),
-        isAdmin: String(r[h['Role']] || '').trim().toLowerCase() === 'admin',
-        active: String(r[h['Active']] || 'Yes').trim().toLowerCase() !== 'no',
-        darwinId: h['Darwin Agent ID'] != null ? String(r[h['Darwin Agent ID']] || '') : '',
-        skyslopeId: h['SkySlope Agent ID'] != null ? String(r[h['SkySlope Agent ID']] || '') : ''
+        name: cell(r, 'Name'), email: email, pin: cell(r, 'PIN'),
+        isAdmin: cell(r, 'Role').toLowerCase() === 'admin',
+        active: cell(r, 'Active').toLowerCase() !== 'no',
+        office: cell(r, 'Office'), skyslopeName: cell(r, 'SkySlope Name') || cell(r, 'Name')
       };
     }
   }
   return null;
 }
 
+/** Agent names for the co-agent picker (from the Agents tab). */
+function readSkySlopeRoster_() {
+  var sheet = getSpreadsheet_().getSheetByName(SHEETS.AGENTS);
+  if (!sheet) return [];
+  var rows = sheet.getDataRange().getValues();
+  var h = indexHeaders_(rows[0]);
+  var out = [];
+  for (var i = 1; i < rows.length; i++) {
+    var n = String(rows[i][h['SkySlope Name']] || rows[i][h['Name']] || '').trim();
+    if (n && String(rows[i][h['Active']] || '').toLowerCase() !== 'no') out.push(n);
+  }
+  return out.sort();
+}
+
 // ---------------------------------------------------------------------------
-// DEALS API (called from the web page)
+// DEALS API
 // ---------------------------------------------------------------------------
 
 function listDeals(token) {
   var user = requireSession_(token);
-  var data = readDeals_();
-  return data.deals
+  return readDeals_().deals
     .filter(function (d) { return user.isAdmin || d.agent_email === user.email; })
     .map(function (d) {
       return {
-        deal_id: d.deal_id, side: d.side, status: d.status, agent_name: d.agent_name, agent_email: d.agent_email,
-        property_address: d.property_address, unit: d.unit, city: d.city, client_name: d.client_name,
-        current_milestone: d.current_milestone, current_milestone_date: d.current_milestone_date,
-        next_milestone: d.next_milestone, milestones_done: d.milestones_done,
-        milestones_total: (MILESTONES[d.side] || []).length,
-        closing_date: d.closing_date || d.lease_start || '', updated_at: d.updated_at
+        deal_id: d.deal_id, side: d.side, represents: d.represents, status: d.status,
+        agent_name: d.agent_name, agent_email: d.agent_email, office: d.office,
+        address: shortAddress_(d), client_name: [d.client_first, d.client_last].filter(String).join(' ') || d.client_company,
+        current_milestone_date: d.current_milestone_date, next_milestone: d.next_milestone,
+        milestones_done: d.milestones_done, milestones_total: (MILESTONES[d.side] || []).length,
+        closing_date: d.closing_date || '', updated_at: d.updated_at,
+        skyslope_status: d.skyslope_status, skyslope_file: d.skyslope_file
       };
     })
     .sort(function (a, b) { return String(b.updated_at).localeCompare(String(a.updated_at)); });
@@ -353,12 +404,12 @@ function getDeal(token, dealId) {
   assertCanAccess_(user, found.deal);
   var deal = found.deal;
   deal.documents = listDocuments_(deal);
+  delete deal.skyslope_payload;
   return deal;
 }
 
 /**
- * Create (no deal_id) or update (with deal_id) a deal, including milestones.
- * `input` = { deal_id?, side, status, fields: {key: value}, milestones: {key: {done, date, note}} }
+ * input = { deal_id?, side, status, fields: {key: value}, milestones: {key: {done, date, note}} }
  */
 function saveDeal(token, input) {
   var user = requireSession_(token);
@@ -377,21 +428,29 @@ function saveDeal(token, input) {
 
     var before = existing ? existing.deal : {};
     var deal = existing ? JSON.parse(JSON.stringify(before)) : {
-      deal_id: newDealId_(), created_at: now, agent_name: user.name, agent_email: user.email, documents_folder: ''
+      deal_id: newDealId_(), created_at: now, agent_name: user.name, agent_email: user.email,
+      skyslope_owner: user.skyslopeName || user.name, skyslope_status: 'Queued', documents_folder: ''
     };
+    if (existing && before.side !== input.side && before.skyslope_status && before.skyslope_status !== 'Queued') {
+      throw new Error('This deal is already in SkySlope as a ' + before.side + ' file. Ask Mac to change the side.');
+    }
     deal.side = input.side;
     deal.updated_at = now;
 
-    // Fields (only the ones that apply to this side)
     var errors = [];
     FIELDS.forEach(function (f) {
-      if (f.sides.indexOf(deal.side) < 0) return;
+      if (f.sides.indexOf(deal.side) < 0) { deal[f.key] = ''; return; }
       var v = input.fields && input.fields[f.key] != null ? String(input.fields[f.key]).trim() : '';
-      if (f.type === 'money' || f.type === 'number') v = v.replace(/[$,\s]/g, '');
-      if (f.required && !v) errors.push(labelFor_(f, deal.side));
+      if (f.type === 'money' || f.type === 'number') v = v.replace(/[$,%\s]/g, '');
+      var opts = optionsFor_(f, deal.side);
+      if (v && opts && opts.indexOf(v) < 0) errors.push(labelFor_(f, deal.side) + ' (not a valid choice)');
+      if (isRequired_(f, deal.side) && !v) errors.push(labelFor_(f, deal.side));
       deal[f.key] = v;
     });
-    if (errors.length) throw new Error('Required: ' + errors.join(', '));
+    if (errors.length) throw new Error('Please check: ' + errors.join(', '));
+
+    deal.represents = deal.represent_both === 'Yes' ? 'Dual' : deal.side;
+    deal.skyslope_type = skySlopeType_(deal);
 
     // Milestones
     var oldMs = before.milestones || {};
@@ -405,63 +464,265 @@ function saveDeal(token, input) {
       newMs[m.key] = { done: done, date: date, note: note };
       var o = oldMs[m.key] || {};
       if (!!o.done !== done || (done && o.date !== date) || (o.note || '') !== note) {
-        msChanges.push({ key: m.key, label: m.label, change: done ? (o.done ? 'updated' : 'completed') : (o.done ? 'reopened' : 'noted'), date: date, note: note });
+        msChanges.push({ key: m.key, label: m.label, status: m.status, change: done ? (o.done ? 'updated' : 'completed') : (o.done ? 'reopened' : 'noted'), date: date, note: note });
       }
     });
     deal.milestones = newMs;
     applyMilestoneSummary_(deal);
 
-    // Status: manual choice, but milestones push it forward automatically
-    var status = STATUSES.indexOf(input.status) >= 0 ? input.status : (before.status || 'Active');
+    // Status: agent's choice, but a completed milestone moves it forward (never back)
+    var status = STATUSES.indexOf(input.status) >= 0 ? input.status : (before.status || defaultStatus_(deal.side));
     msChanges.forEach(function (c) {
-      if (c.change === 'completed' && STATUS_TRIGGERS[c.key] && status !== 'Cancelled') {
-        if (!(STATUS_TRIGGERS[c.key] === 'Under Contract' && status === 'Closed')) status = STATUS_TRIGGERS[c.key];
-      }
+      if (c.change === 'completed' && c.status && status !== 'Cancelled' && status !== 'TOM' &&
+          (STATUS_RANK[c.status] || 0) > (STATUS_RANK[status] || 0)) status = c.status;
     });
     deal.status = status;
-
-    var changedFields = existing ? diffFields_(before, deal) : [];
-
-    // Write row
-    var row = headers.map(function (h) { return toCell_(h, deal); });
-    if (existing) {
-      sheet.getRange(existing.rowIndex, 1, 1, headers.length).setValues([row]);
-    } else {
-      sheet.appendRow(row);
+    // Fill the contract date from the milestone if the agent didn't type it
+    if (newMs.contract_signed && newMs.contract_signed.done && !deal.contract_date && deal.side !== 'Tenant' && deal.side !== 'Landlord') {
+      deal.contract_date = newMs.contract_signed.date;
     }
 
-    // Milestone log
+    var changedFields = existing ? diffFields_(before, deal) : [];
+    if (existing && changedFields.length && deal.skyslope_status && deal.skyslope_status !== 'Queued') {
+      deal.skyslope_status = 'Update Queued';
+      deal.skyslope_notes = 'Changed: ' + changedFields.join(', ');
+    }
+    deal.skyslope_payload = JSON.stringify(buildSkySlopePayload_(deal));
+
+    var row = headers.map(function (h) { return toCell_(h, deal); });
+    if (existing) sheet.getRange(existing.rowIndex, 1, 1, headers.length).setValues([row]);
+    else sheet.appendRow(row);
+
     if (msChanges.length) {
       var log = getSpreadsheet_().getSheetByName(SHEETS.MILESTONE_LOG);
       msChanges.forEach(function (c) {
-        log.appendRow([now, deal.deal_id, deal.side, deal.property_address, user.email, c.label, c.change, c.date, c.note]);
+        log.appendRow([now, deal.deal_id, deal.side, shortAddress_(deal), user.email, c.label, c.change, c.date, c.note]);
       });
     }
     SpreadsheetApp.flush();
-
     result = { deal: deal, isNew: !existing, changedFields: changedFields, msChanges: msChanges };
   } finally {
     lock.releaseLock();
   }
 
-  // Push to integrations outside the lock
-  var event = result.isNew ? 'deal.created' : (result.msChanges.length ? 'milestone.updated' : 'deal.updated');
-  if (result.isNew || result.changedFields.length || result.msChanges.length) {
-    var syncResults = pushToIntegrations_(event, flattenDeal_(result.deal), {
-      changed_fields: result.changedFields,
-      milestone_changes: result.msChanges
-    });
-    writeSyncSummary_(result.deal.deal_id, syncResults);
-    result.sync = syncResults;
-  } else {
-    result.sync = [];
+  var inv;
+  try {
+    inv = syncInventory_(result.deal);
+  } catch (e) {
+    inv = { ok: false, message: 'Inventory update failed: ' + e.message };
   }
+  logSync_(result.deal.deal_id, 'Office Sheets', inv.ok ? 'OK' : 'FAILED', inv.message);
+  setDealCells_(result.deal.deal_id, { 'Inventory Tab': inv.tab || '', 'Inventory Result': isoNow_() + ' ' + inv.message });
 
-  return { deal_id: result.deal.deal_id, isNew: result.isNew, status: result.deal.status, sync: result.sync };
+  return {
+    deal_id: result.deal.deal_id, isNew: result.isNew, status: result.deal.status,
+    skyslope_status: result.deal.skyslope_status, inventory: inv
+  };
 }
 
 // ---------------------------------------------------------------------------
-// DOCUMENTS (saved in Google Drive, one folder per deal)
+// OFFICE SHEETS INVENTORY
+// Columns: A Address | B MLS # | C Listing Date | D Expired Date | E Listing Price | F Status |
+//          G Represents | H Skyslope | I UC Date | J UC Price | K Commission |
+//          L Closing Date & Time | M Agent(s)
+// Rules match the daily inventory sync: never duplicate, never overwrite what
+// Mac typed, never move a status backwards.
+// ---------------------------------------------------------------------------
+
+function syncInventory_(deal) {
+  if (deal.status === 'Cancelled') return { ok: true, message: 'Cancelled: inventory left as is for Mac to review.' };
+  if (OFFICES.indexOf(deal.office) < 0) return { ok: false, message: 'No office chosen.' };
+  var id = PropertiesService.getScriptProperties().getProperty('INVENTORY_SPREADSHEET_ID') || DEFAULT_INVENTORY_ID;
+  var ss = SpreadsheetApp.openById(id);
+  var tabs = OFFICES.map(function (o) { return ss.getSheetByName(o + ' Inventory'); });
+  if (tabs.some(function (t) { return !t; })) return { ok: false, message: 'Inventory tabs not found.' };
+
+  var want = inventoryValues_(deal);
+
+  // 1. Already on either tab? (MLS # or street number + street name)
+  for (var t = 0; t < tabs.length; t++) {
+    var data = tabs[t].getRange(1, 1, Math.max(tabs[t].getLastRow(), 1), 13).getDisplayValues();
+    for (var r = 1; r < data.length; r++) {
+      if (rowMatches_(data[r], deal)) return updateInventoryRow_(tabs[t], r + 1, data[r], want, deal);
+    }
+  }
+
+  // 2. Add a new row inside the data block of the agent's office tab
+  var sheet = ss.getSheetByName(deal.office + ' Inventory');
+  var vals = sheet.getRange(1, 1, Math.max(sheet.getLastRow(), 1), 13).getDisplayValues();
+  var lastData = 1, lastSameStatus = 0;
+  for (var i = 1; i < vals.length; i++) {
+    var a = String(vals[i][0]).trim();
+    if (a.toUpperCase() === 'TOTAL') break;
+    if (a) {
+      lastData = i + 1;
+      if (String(vals[i][5]).trim() === want[5]) lastSameStatus = i + 1;
+    }
+  }
+  var after = lastSameStatus || lastData;
+  sheet.insertRowAfter(after);
+  var newRow = after + 1;
+  var range = sheet.getRange(newRow, 1, 1, 13);
+  range.setValues([want]);
+  range.setBackground(NEW_ROW_COLOR);
+  sheet.getRange(newRow, 5).setNumberFormat('$#,##0');
+  sheet.getRange(newRow, 10, 1, 2).setNumberFormat('$#,##0');
+  return { ok: true, tab: sheet.getName(), message: 'Added to ' + sheet.getName() + ' (row ' + newRow + ', yellow).' };
+}
+
+function updateInventoryRow_(sheet, rowNum, current, want, deal) {
+  var changes = [];
+  // Fill only blank cells: C, D, E, I, J, K, L (indexes 2,3,4,8,9,10,11)
+  [2, 3, 4, 8, 9, 10, 11].forEach(function (c) {
+    if (!String(current[c]).trim() && want[c] !== '') {
+      sheet.getRange(rowNum, c + 1).setValue(want[c]);
+      if (c === 4 || c === 9 || c === 10) sheet.getRange(rowNum, c + 1).setNumberFormat('$#,##0');
+      changes.push(['', 'MLS #', 'Listing Date', 'Expired Date', 'Listing Price', '', '', '', 'UC Date', 'UC Price', 'Commission', 'Closing Date & Time'][c]);
+    }
+  });
+  // Status: forward only; TOM/Sold rows are left for Mac
+  var cur = String(current[5]).trim();
+  var next = want[5];
+  if (cur !== 'TOM' && cur !== 'Sold' && next !== cur) {
+    if (next === 'TOM' || (STATUS_RANK[next] || 0) > (STATUS_RANK[cur] || 0)) {
+      sheet.getRange(rowNum, 6).setValue(next);
+      changes.push('Status ' + (cur || '(blank)') + ' → ' + next);
+    }
+  }
+  return {
+    ok: true, tab: sheet.getName(),
+    message: changes.length ? 'Updated ' + sheet.getName() + ' row ' + rowNum + ': ' + changes.join(', ') + '.' : 'Already on ' + sheet.getName() + ' (row ' + rowNum + '); nothing new to fill.'
+  };
+}
+
+function inventoryValues_(deal) {
+  var isListing = deal.side === 'Seller' || deal.side === 'Landlord';
+  var ucStatuses = ['Under Contract', 'Closing Set', 'Sold'];
+  var underContract = ucStatuses.indexOf(deal.status) >= 0;
+  var commission = commissionDollars_(deal);
+  var closing = '';
+  if ((deal.status === 'Closing Set' || deal.status === 'Sold') && deal.closing_date) {
+    closing = mmdd_(deal.closing_date) + (deal.closing_time ? ' at ' + deal.closing_time : ' time unknown');
+  }
+  var agents = [deal.agent_name, deal.co_agent].filter(String).join(' / ');
+  return [
+    shortAddress_(deal) + (deal.city ? ', ' + deal.city : ''),
+    deal.mls_number || '',
+    isListing ? mmddyy_(deal.listing_date) : '',
+    isListing ? mmddyy_(deal.listing_expiration) : '',
+    deal.list_price ? Number(deal.list_price) : '',
+    deal.status,
+    deal.represents,
+    'Needs To Be Added',
+    underContract ? mmddyy_(deal.contract_date || deal.acceptance_date) : '',
+    underContract && deal.price ? Number(deal.price) : '',
+    underContract && commission ? commission : '',
+    closing,
+    agents
+  ];
+}
+
+/** Our side's commission in dollars (both sides when dual). */
+function commissionDollars_(deal) {
+  var price = Number(deal.price || 0);
+  var total = 0;
+  var isListing = deal.side === 'Seller' || deal.side === 'Landlord';
+  var dual = deal.represent_both === 'Yes';
+  if (isListing || dual) total += deal.listing_comm_amt ? Number(deal.listing_comm_amt) : price * Number(deal.listing_comm_pct || 0) / 100;
+  if (!isListing || dual) total += deal.sale_comm_amt ? Number(deal.sale_comm_amt) : price * Number(deal.sale_comm_pct || 0) / 100;
+  return Math.round(total * 100) / 100;
+}
+
+function rowMatches_(row, deal) {
+  var mls = String(deal.mls_number || '').replace(/\D/g, '');
+  if (mls && String(row[1]).replace(/\D/g, '') === mls) return true;
+  var addr = String(row[0]).toLowerCase();
+  var num = String(deal.street_number || '').toLowerCase().trim();
+  var firstWord = String(deal.street_name || '').toLowerCase().trim().split(/\s+/)[0] || '';
+  return !!(num && firstWord && addr.indexOf(num + ' ') === 0 && addr.indexOf(firstWord) > 0);
+}
+
+// ---------------------------------------------------------------------------
+// SKYSLOPE PAYLOAD: what the SkySlope task types into each screen
+// (element ids from the 2026-11-13 capture)
+// ---------------------------------------------------------------------------
+
+function skySlopeType_(deal) {
+  var dual = deal.represent_both === 'Yes';
+  if (deal.side === 'Seller') return dual ? 'Both Purchase + Listing' : 'Listing';
+  if (deal.side === 'Buyer') return dual ? 'Both Purchase + Listing' : 'Purchase';
+  if (deal.side === 'Tenant') return dual ? 'Both Lease Tenant + Landlord' : 'Lease Tenant';
+  return dual ? 'Both Lease Tenant + Landlord' : 'Lease Landlord';
+}
+
+function buildSkySlopePayload_(d) {
+  var clientIsSellerSide = d.side === 'Seller' || d.side === 'Landlord';
+  var client = [{ entity: d.client_is_entity === 'Yes', company: d.client_company, first: d.client_first, last: d.client_last, email: d.client_email, phone: d.client_phone }];
+  if (d.client2_first || d.client2_last) client.push({ entity: false, company: '', first: d.client2_first, last: d.client2_last, email: d.client2_email, phone: d.client2_phone });
+  var other = (d.other_first || d.other_last) ? [{ entity: false, company: '', first: d.other_first, last: d.other_last, email: d.other_email, phone: d.other_phone }] : [];
+  var splitName = function (s) { var p = String(s || '').trim().split(/\s+/); return { first: p.slice(0, -1).join(' ') || p[0] || '', last: p.length > 1 ? p[p.length - 1] : '' }; };
+  var attorneys = [];
+  if (d.client_attorney_name) attorneys.push(Object.assign(splitName(d.client_attorney_name), { company: d.client_attorney_firm, phone: d.client_attorney_phone, email: d.client_attorney_email, represents: 'our client' }));
+  if (d.other_attorney_name) attorneys.push(Object.assign(splitName(d.other_attorney_name), { company: d.other_attorney_firm, phone: d.other_attorney_phone, email: d.other_attorney_email, represents: 'other side' }));
+  var lo = splitName(d.loan_officer);
+
+  return {
+    deal_id: d.deal_id,
+    side: d.side,
+    file_owner: d.skyslope_owner,
+    forms_create: {
+      url: 'https://forms.skyslope.com/create?representationType=' + ({ Seller: 'Seller', Buyer: 'Buyer', Tenant: 'tenant', Landlord: 'landlord' })[d.side],
+      onBehalfOfAutoComplete: d.skyslope_owner,
+      representationType: d.side,
+      createSellerNetSheet: d.side === 'Seller' ? (d.seller_net_sheet || 'Yes') : null,
+      contacts: client.map(function (c) { return { entity: c.entity, company: c.company, firstName: c.first, lastName: c.last, email: c.email }; }),
+      streetAddress: [d.street_number, d.direction, d.street_name].filter(String).join(' '),
+      unitNumber: d.unit, city: d.city, state: d.state, postalCode: d.zip, county: d.county,
+      nameType: 'Address',
+      template: d.forms_template
+    },
+    transaction: {
+      ddlCheckListOffice: d.office, ddlProperty: d.checklist_type, txtMLS: d.mls_number,
+      txtStreet: d.street_number, ddlDirection: d.direction, txtStreetName: d.street_name, txtUnitNum: d.unit,
+      txtZip: d.zip, ddlStateSelect: d.state, txtCity: d.city, txtCounty: d.county,
+      coAgent: d.co_agent,
+      ddlType: d.skyslope_type,
+      txtSalePrice: d.price || d.list_price, txtYearBuilt: d.year_built,
+      ddlSource: d.source, ddlWillOwnerOccupy: d.office_lead,
+      txtContractDate: slash_(d.acceptance_date), txtClosingDate: slash_(d.closing_date),
+      txtListPrice: d.list_price, txtListingExpiryDate: slash_(d.listing_expiration),
+      ddlRenewalOpt: d.renewal_option, ddlPurchaseOpt: d.purchase_option
+    },
+    contacts: {
+      seller_landlord: clientIsSellerSide ? client : other,
+      purchaser_tenant: clientIsSellerSide ? other : client,
+      attorneys: attorneys,
+      agent_other_side: (d.other_agent_first || d.other_agent_last) ? { first: d.other_agent_first, last: d.other_agent_last, company: d.other_brokerage, email: d.other_agent_email, phone: d.other_agent_phone } : null,
+      lender: (d.side === 'Seller' || d.side === 'Buyer') ? {
+        cashDeal: d.cash_deal === 'Yes', loanType: d.loan_type, loanAmount: d.loan_amount, company: d.lender_company,
+        first: lo.first, last: lo.last, phone: d.loan_officer_phone, email: d.loan_officer_email
+      } : null,
+      title: d.title_company ? { company: d.title_company, contact: d.title_contact } : null
+    },
+    commission: {
+      txtSalePrice: d.price || d.list_price,
+      personalDeal: d.personal_deal || 'No',
+      txtListingCommisionPercentage: d.listing_comm_pct, txtlistingamt: d.listing_comm_amt,
+      txtSaleCommisionPercentage: d.sale_comm_pct, txtsalescommissionamt: d.sale_comm_amt,
+      brokerageWillHoldEarnestMoney: d.brokerage_holds_deposit || 'No', DepositAmountTextBox: d.deposit_amount,
+      ddlReferralType: d.referral_type || 'No Referral', txtReferringAgent: d.referral_agent, txtCompany: d.referral_brokerage,
+      txtReferralAmount: d.referral_amt, txtReferralAmountPercentage: d.referral_pct,
+      txtCommisionBreakdownDescription: d.commission_notes,
+      split: d.co_agent ? { txtSharedAgentName1: d.co_agent, txtSharedAgentperr1: d.co_agent_split } : null
+    },
+    signature: {
+      signers: client.filter(function (c) { return c.email; }).map(function (c) { return { name: (c.first + ' ' + c.last).trim(), email: c.email }; })
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// DOCUMENTS (Drive folder per deal)
 // ---------------------------------------------------------------------------
 
 function uploadDocument(token, dealId, file) {
@@ -470,44 +731,25 @@ function uploadDocument(token, dealId, file) {
   if (!found) throw new Error('Save the deal before uploading documents.');
   assertCanAccess_(user, found.deal);
   if (!file || !file.data) throw new Error('No file received.');
-
   var bytes = Utilities.base64Decode(file.data);
   if (bytes.length > MAX_UPLOAD_BYTES) throw new Error('File is larger than 20 MB.');
-
   var folder = getDealFolder_(found);
-  var blob = Utilities.newBlob(bytes, file.mimeType || 'application/octet-stream', file.name || 'document');
-  var saved = folder.createFile(blob);
+  var saved = folder.createFile(Utilities.newBlob(bytes, file.mimeType || 'application/octet-stream', file.name || 'document'));
   if (file.category) saved.setDescription(file.category);
-
-  var flat = flattenDeal_(found.deal);
-  var syncResults = pushToIntegrations_('document.uploaded', flat, {
-    document: { name: saved.getName(), url: saved.getUrl(), id: saved.getId(), category: file.category || '', mime_type: saved.getMimeType() }
-  });
-  writeSyncSummary_(dealId, syncResults);
   return listDocuments_(found.deal);
 }
 
 function getDealFolder_(found) {
   var deal = found.deal;
-  if (deal.documents_folder) {
-    var id = extractDriveId_(deal.documents_folder);
-    if (id) { try { return DriveApp.getFolderById(id); } catch (e) {} }
-  }
+  var id = extractDriveId_(deal.documents_folder);
+  if (id) { try { return DriveApp.getFolderById(id); } catch (e) {} }
   var props = PropertiesService.getScriptProperties();
-  var rootId = props.getProperty('DOCS_FOLDER_ID');
   var root;
-  try { root = rootId ? DriveApp.getFolderById(rootId) : null; } catch (e) { root = null; }
-  if (!root) {
-    root = DriveApp.createFolder(APP_NAME + ' Documents');
-    props.setProperty('DOCS_FOLDER_ID', root.getId());
-  }
-  var folder = root.createFolder(deal.deal_id + ' - ' + (deal.property_address || 'Deal') + ' (' + deal.side + ')');
-  try { folder.addEditor(deal.agent_email); } catch (e) { /* non-Google email: links still work for admins */ }
-
-  var sheet = getSpreadsheet_().getSheetByName(SHEETS.DEALS);
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  var col = headers.indexOf('Documents Folder');
-  if (col >= 0) sheet.getRange(found.rowIndex, col + 1).setValue(folder.getUrl());
+  try { root = props.getProperty('DOCS_FOLDER_ID') ? DriveApp.getFolderById(props.getProperty('DOCS_FOLDER_ID')) : null; } catch (e) { root = null; }
+  if (!root) { root = DriveApp.createFolder(APP_NAME + ' Documents'); props.setProperty('DOCS_FOLDER_ID', root.getId()); }
+  var folder = root.createFolder(deal.deal_id + ' - ' + shortAddress_(deal) + ' (' + deal.side + ')');
+  try { folder.addEditor(deal.agent_email); } catch (e) {}
+  setDealCells_(deal.deal_id, { 'Documents Folder': folder.getUrl() });
   deal.documents_folder = folder.getUrl();
   return folder;
 }
@@ -523,112 +765,7 @@ function listDocuments_(deal) {
       out.push({ name: f.getName(), url: f.getUrl(), category: f.getDescription() || '', uploaded: f.getDateCreated().toISOString() });
     }
     return out.sort(function (a, b) { return b.uploaded.localeCompare(a.uploaded); });
-  } catch (e) {
-    return [];
-  }
-}
-
-// ---------------------------------------------------------------------------
-// INTEGRATIONS: SkySlope, Darwin, anything else (via webhooks)
-// ---------------------------------------------------------------------------
-
-/**
- * Sends one JSON payload to each configured webhook URL. Point these at the
- * Zapier / Make / n8n "catch hook" that already drives your SkySlope and
- * Darwin automations (or directly at an endpoint that accepts JSON).
- */
-function pushToIntegrations_(event, flatDeal, extra) {
-  var props = PropertiesService.getScriptProperties();
-  var targets = [];
-  var sky = (props.getProperty('SKYSLOPE_WEBHOOK_URL') || '').trim();
-  var darwin = (props.getProperty('DARWIN_WEBHOOK_URL') || '').trim();
-  if (sky) targets.push({ name: 'SkySlope', url: sky });
-  if (darwin) targets.push({ name: 'Darwin', url: darwin });
-  String(props.getProperty('EXTRA_WEBHOOK_URLS') || '').split(/[\s,]+/).filter(String).forEach(function (u, i) {
-    targets.push({ name: 'Webhook ' + (i + 1), url: u });
-  });
-  if (!targets.length) return [];
-
-  var agent = flatDeal.agent_email ? findAgent_(flatDeal.agent_email) : null;
-  var payload = {
-    event: event,
-    sent_at: isoNow_(),
-    source: APP_NAME,
-    deal: flatDeal,
-    agent: {
-      name: flatDeal.agent_name, email: flatDeal.agent_email,
-      darwin_agent_id: agent ? agent.darwinId : '', skyslope_agent_id: agent ? agent.skyslopeId : ''
-    },
-    changed_fields: (extra && extra.changed_fields) || [],
-    milestone_changes: (extra && extra.milestone_changes) || [],
-    document: (extra && extra.document) || null,
-    sheet_url: getSpreadsheet_().getUrl()
-  };
-  var secret = (props.getProperty('WEBHOOK_SECRET') || '').trim();
-  var body = JSON.stringify(payload);
-  var headers = {};
-  if (secret) {
-    headers['X-Deal-Tracker-Signature'] = Utilities.base64Encode(
-      Utilities.computeHmacSha256Signature(body, secret));
-  }
-
-  var requests = targets.map(function (t) {
-    return { url: t.url, method: 'post', contentType: 'application/json', payload: body, headers: headers, muteHttpExceptions: true, followRedirects: true };
-  });
-
-  var results = [];
-  var responses;
-  try {
-    responses = UrlFetchApp.fetchAll(requests);
-  } catch (e) {
-    responses = null;
-    targets.forEach(function (t) { results.push({ target: t.name, ok: false, status: 0, response: String(e) }); });
-  }
-  if (responses) {
-    responses.forEach(function (r, i) {
-      var code = r.getResponseCode();
-      results.push({ target: targets[i].name, ok: code >= 200 && code < 300, status: code, response: r.getContentText().slice(0, 500) });
-    });
-  }
-
-  var log = getSpreadsheet_().getSheetByName(SHEETS.SYNC_LOG);
-  if (log) {
-    results.forEach(function (r) {
-      log.appendRow([isoNow_(), flatDeal.deal_id, event, r.target, r.status, r.response]);
-    });
-  }
-  return results.map(function (r) { return { target: r.target, ok: r.ok, status: r.status }; });
-}
-
-function writeSyncSummary_(dealId, results) {
-  if (!results || !results.length) return;
-  var found = findDealRow_(dealId);
-  if (!found) return;
-  var sheet = getSpreadsheet_().getSheetByName(SHEETS.DEALS);
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  var col = headers.indexOf('Last Sync Result');
-  if (col < 0) return;
-  var text = isoNow_() + ' ' + results.map(function (r) { return r.target + ':' + (r.ok ? 'OK' : 'FAILED ' + r.status); }).join(' | ');
-  sheet.getRange(found.rowIndex, col + 1).setValue(text);
-}
-
-/** Flat object: every field + every milestone as milestone_<key>_done/date. */
-function flattenDeal_(deal) {
-  var out = {
-    deal_id: deal.deal_id, created_at: deal.created_at, updated_at: deal.updated_at,
-    agent_name: deal.agent_name, agent_email: deal.agent_email, side: deal.side, status: deal.status,
-    current_milestone: deal.current_milestone, current_milestone_date: deal.current_milestone_date,
-    next_milestone: deal.next_milestone, milestones_done: deal.milestones_done,
-    milestones_total: (MILESTONES[deal.side] || []).length, documents_folder: deal.documents_folder || ''
-  };
-  FIELDS.forEach(function (f) { out[f.key] = deal[f.key] || ''; });
-  out.full_address = [deal.property_address, deal.unit, deal.city, deal.state, deal.zip].filter(String).join(', ');
-  (MILESTONES[deal.side] || []).forEach(function (m) {
-    var s = (deal.milestones || {})[m.key] || {};
-    out['milestone_' + m.key + '_done'] = !!s.done;
-    out['milestone_' + m.key + '_date'] = s.date || '';
-  });
-  return out;
+  } catch (e) { return []; }
 }
 
 // ---------------------------------------------------------------------------
@@ -651,23 +788,21 @@ function ensureSheet_(ss, name, headers) {
   var lastCol = sheet.getLastColumn();
   var existing = lastCol ? sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(String) : [];
   var missing = headers.filter(function (h) { return existing.indexOf(h) < 0; });
-  if (!existing.filter(String).length) {
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-  } else if (missing.length) {
-    sheet.getRange(1, lastCol + 1, 1, missing.length).setValues([missing]);
-  }
+  if (!existing.filter(String).length) sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  else if (missing.length) sheet.getRange(1, lastCol + 1, 1, missing.length).setValues([missing]);
   sheet.setFrozenRows(1);
   sheet.getRange(1, 1, 1, sheet.getLastColumn()).setFontWeight('bold').setBackground('#1f2937').setFontColor('#ffffff');
   return sheet;
 }
 
-/** Map of system column header -> deal property. Field columns map via FIELDS. */
 var SYSTEM_KEYS = {
   'Deal ID': 'deal_id', 'Created At': 'created_at', 'Updated At': 'updated_at', 'Agent Name': 'agent_name',
-  'Agent Email': 'agent_email', 'Side': 'side', 'Status': 'status', 'Current Milestone': 'current_milestone',
-  'Current Milestone Date': 'current_milestone_date', 'Next Milestone': 'next_milestone',
-  'Milestones Done': 'milestones_done', 'Milestone Summary': 'milestone_summary',
-  'Documents Folder': 'documents_folder', 'Last Sync Result': 'last_sync'
+  'Agent Email': 'agent_email', 'SkySlope File Owner': 'skyslope_owner', 'Side': 'side', 'Represents': 'represents',
+  'SkySlope Type': 'skyslope_type', 'Status': 'status', 'Current Milestone': 'current_milestone',
+  'Current Milestone Date': 'current_milestone_date', 'Next Milestone': 'next_milestone', 'Milestones Done': 'milestones_done',
+  'SkySlope Status': 'skyslope_status', 'SkySlope File': 'skyslope_file', 'SkySlope Notes': 'skyslope_notes',
+  'Milestone Summary': 'milestone_summary', 'Inventory Tab': 'inventory_tab', 'Inventory Result': 'inventory_result',
+  'Documents Folder': 'documents_folder', 'SkySlope Payload JSON': 'skyslope_payload'
 };
 
 function colToKey_() {
@@ -680,7 +815,7 @@ function colToKey_() {
 function toCell_(header, deal) {
   if (header === 'Milestones JSON') return JSON.stringify(deal.milestones || {});
   var key = colToKey_()[header];
-  if (!key) return (deal._extra && deal._extra[header] != null) ? deal._extra[header] : ''; // keep columns other automations added
+  if (!key) return (deal._extra && deal._extra[header] != null) ? deal._extra[header] : '';
   var v = deal[key];
   return v == null ? '' : v;
 }
@@ -688,8 +823,9 @@ function toCell_(header, deal) {
 function readDeals_() {
   var sheet = getSpreadsheet_().getSheetByName(SHEETS.DEALS);
   if (!sheet) throw new Error('Run setup() first.');
-  var values = sheet.getDataRange().getValues();
-  var display = sheet.getDataRange().getDisplayValues();
+  var range = sheet.getDataRange();
+  var values = range.getValues();
+  var display = range.getDisplayValues();
   var headers = values[0].map(String);
   var map = colToKey_();
   var deals = [];
@@ -697,31 +833,38 @@ function readDeals_() {
     if (!values[i][0]) continue;
     var d = { _row: i + 1, _extra: {} };
     headers.forEach(function (h, c) {
-      if (h === 'Milestones JSON') {
-        try { d.milestones = JSON.parse(values[i][c] || '{}'); } catch (e) { d.milestones = {}; }
-        return;
-      }
-      var key = map[h];
       var v = values[i][c];
-      var out = v instanceof Date ? Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(display[i][c] === '' ? '' : (typeof v === 'number' ? v : display[i][c]));
+      if (h === 'Milestones JSON') { try { d.milestones = JSON.parse(v || '{}'); } catch (e) { d.milestones = {}; } return; }
+      var key = map[h];
+      var out = v instanceof Date ? Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd') : (typeof v === 'number' ? String(v) : String(display[i][c]));
       if (key) d[key] = out; else if (h) d._extra[h] = v;
     });
-    if (d.agent_email) d.agent_email = d.agent_email.toLowerCase();
+    d.agent_email = String(d.agent_email || '').toLowerCase();
     deals.push(d);
   }
   return { sheet: sheet, headers: headers, deals: deals };
 }
 
 function findDealRow_(dealId) {
-  var data = readDeals_();
-  for (var i = 0; i < data.deals.length; i++) {
-    if (data.deals[i].deal_id === dealId) {
-      var deal = data.deals[i];
-      var rowIndex = deal._row;
-      return { rowIndex: rowIndex, deal: deal };
-    }
-  }
+  var deals = readDeals_().deals;
+  for (var i = 0; i < deals.length; i++) if (deals[i].deal_id === dealId) return { rowIndex: deals[i]._row, deal: deals[i] };
   return null;
+}
+
+function setDealCells_(dealId, cells) {
+  var found = findDealRow_(dealId);
+  if (!found) return;
+  var sheet = getSpreadsheet_().getSheetByName(SHEETS.DEALS);
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  Object.keys(cells).forEach(function (h) {
+    var c = headers.indexOf(h);
+    if (c >= 0) sheet.getRange(found.rowIndex, c + 1).setValue(cells[h]);
+  });
+}
+
+function logSync_(dealId, target, result, details) {
+  var log = getSpreadsheet_().getSheetByName(SHEETS.SYNC_LOG);
+  if (log) log.appendRow([isoNow_(), dealId, target, result, details]);
 }
 
 function assertCanAccess_(user, deal) {
@@ -732,13 +875,8 @@ function applyMilestoneSummary_(deal) {
   var list = MILESTONES[deal.side] || [];
   var ms = deal.milestones || {};
   var lastDone = null, next = null, count = 0;
-  list.forEach(function (m) {
-    var s = ms[m.key] || {};
-    if (s.done) { count++; lastDone = { label: m.label, date: s.date }; }
-  });
-  for (var i = 0; i < list.length; i++) {
-    if (!(ms[list[i].key] || {}).done) { next = list[i]; break; }
-  }
+  list.forEach(function (m) { var s = ms[m.key] || {}; if (s.done) { count++; lastDone = { label: m.label, date: s.date }; } });
+  for (var i = 0; i < list.length; i++) if (!(ms[list[i].key] || {}).done) { next = list[i]; break; }
   deal.current_milestone = lastDone ? lastDone.label : 'Not started';
   deal.current_milestone_date = lastDone ? lastDone.date : '';
   deal.next_milestone = next ? next.label : 'All milestones complete';
@@ -761,7 +899,27 @@ function diffFields_(before, after) {
 // SMALL UTILITIES
 // ---------------------------------------------------------------------------
 
+function optionsFor_(f, side) { return f.optionsBySide ? f.optionsBySide[side] : (f.options || null); }
+function isRequired_(f, side) { return f.req === true || (Array.isArray(f.req) && f.req.indexOf(side) >= 0); }
 function labelFor_(f, side) { return (f.labels && f.labels[side]) || f.label; }
+function defaultStatus_(side) { return 'Active'; }
+
+function shortAddress_(d) {
+  return [d.street_number, d.direction, d.street_name].filter(String).join(' ') + (d.unit ? ' #' + d.unit : '');
+}
+
+function mmddyy_(iso) {
+  var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[2] + '/' + m[3] + '/' + m[1].slice(2) : '';
+}
+function mmdd_(iso) {
+  var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[2] + '/' + m[3] : '';
+}
+function slash_(iso) {
+  var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[2] + '/' + m[3] + '/' + m[1] : '';
+}
 
 function newDealId_() {
   var stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyMMdd');
@@ -772,19 +930,7 @@ function newDealId_() {
 }
 
 function randomPin_() { return Math.floor(100000 + Math.random() * 900000); }
-
 function isoNow_() { return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss"); }
-
 function todayStr_() { return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd'); }
-
-function indexHeaders_(row) {
-  var h = {};
-  row.forEach(function (name, i) { h[String(name).trim()] = i; });
-  return h;
-}
-
-function extractDriveId_(urlOrId) {
-  if (!urlOrId) return '';
-  var m = String(urlOrId).match(/[-\w]{25,}/);
-  return m ? m[0] : '';
-}
+function indexHeaders_(row) { var h = {}; row.forEach(function (n, i) { h[String(n).trim()] = i; }); return h; }
+function extractDriveId_(s) { var m = String(s || '').match(/[-\w]{25,}/); return m ? m[0] : ''; }
