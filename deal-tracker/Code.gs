@@ -247,7 +247,8 @@ var NEW_ROW_COLOR = '#fff8bf';
 // ---------------------------------------------------------------------------
 
 function doGet() {
-  return HtmlService.createTemplateFromFile('Index').evaluate()
+  var html = typeof INDEX_HTML !== 'undefined' ? INDEX_HTML : HtmlService.createHtmlOutputFromFile('Index').getContent();
+  return HtmlService.createHtmlOutput(html)
     .setTitle(APP_NAME)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
@@ -270,14 +271,137 @@ function setup() {
   var agents = ensureSheet_(ss, SHEETS.AGENTS, ['Name', 'Email', 'PIN', 'Role', 'Active', 'Office', 'SkySlope Name']);
   ensureSheet_(ss, SHEETS.MILESTONE_LOG, ['Timestamp', 'Deal ID', 'Side', 'Property', 'Agent Email', 'Milestone', 'Change', 'Milestone Date', 'Note']);
   ensureSheet_(ss, SHEETS.SYNC_LOG, ['Timestamp', 'Deal ID', 'Target', 'Result', 'Details']);
-  agents.getRange('C:C').setNumberFormat('@');
-  if (agents.getLastRow() < 2) {
-    agents.appendRow(['Michael Aharoni', Session.getEffectiveUser().getEmail(), String(randomPin_()), 'Admin', 'Yes', 'Dix Hills', 'Michael Aharoni']);
-  }
+  agents.getRange('B:C').setNumberFormat('@');
   var props = PropertiesService.getScriptProperties();
   if (props.getProperty('INVENTORY_SPREADSHEET_ID') === null) props.setProperty('INVENTORY_SPREADSHEET_ID', DEFAULT_INVENTORY_ID);
   if (props.getProperty('DOCS_FOLDER_ID') === null) props.setProperty('DOCS_FOLDER_ID', '');
-  Logger.log('Setup complete. Fill in the Agents tab (Office + SkySlope Name exactly as SkySlope shows it).');
+  var hasAdmin = agents.getDataRange().getValues().some(function (r) { return String(r[3]).toLowerCase() === 'admin'; });
+  if (!hasAdmin) {
+    agents.appendRow(['Michael Aharoni', Session.getEffectiveUser().getEmail(), String(randomPin_()), 'Admin', 'Yes', 'Dix Hills', 'Michael Aharoni']);
+  }
+  var res = syncAgentsFromRoster();
+  Logger.log('Setup complete. ' + res);
+}
+
+/** Adds a "Deal Tracker" menu to the spreadsheet. */
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('Deal Tracker')
+    .addItem('Sync agents from Office Sheets roster', 'syncAgentsFromRoster')
+    .addToUi();
+}
+
+/**
+ * Builds the Agents tab from the Office Sheets "Roster" tab: Office, Name,
+ * PIN = the agent's MLS ID, Email (if the roster has an email column), and the
+ * matching SkySlope File Owner name. Reads ONLY those columns, found by their
+ * header text; no other roster column (e.g. passwords) is ever read.
+ * Safe to run again: it updates existing agents, adds new ones, and marks
+ * agents who left the roster Active = No. Rows with Role = Admin are left alone.
+ */
+function syncAgentsFromRoster() {
+  var id = PropertiesService.getScriptProperties().getProperty('INVENTORY_SPREADSHEET_ID') || DEFAULT_INVENTORY_ID;
+  var roster = SpreadsheetApp.openById(id).getSheetByName('Roster');
+  if (!roster) throw new Error('No "Roster" tab in Office Sheets.');
+  var header = roster.getRange(1, 1, 1, roster.getLastColumn()).getDisplayValues()[0].map(function (h) { return String(h).trim(); });
+  var find = function (re, label) {
+    var hits = [];
+    header.forEach(function (h, i) { if (re.test(h)) hits.push(i); });
+    if (hits.length > 1) throw new Error('More than one ' + label + ' column on the Roster: ' + hits.map(function (i) { return header[i]; }).join(', '));
+    return hits.length ? hits[0] : -1;
+  };
+  var cOffice = find(/^office$/i, 'Office'), cName = find(/^(agent\s*)?name$/i, 'Name');
+  // MLS ID column: has "MLS" in the header but is not a password/login column
+  var pick = function (test, prefer) {
+    var hits = [];
+    header.forEach(function (h, i) { if (test(h)) hits.push(i); });
+    if (hits.length > 1) {
+      var preferred = hits.filter(function (i) { return prefer.test(header[i]); });
+      if (preferred.length) hits = preferred;
+    }
+    return hits;
+  };
+  var secret = /pass|pw|pwd|login|user|pin\b/i;
+  var mlsHits = pick(function (h) { return /mls/i.test(h) && !secret.test(h); }, /id|#|number|no\.?$/i);
+  if (mlsHits.length > 1) throw new Error('More than one MLS column on the Roster: ' + mlsHits.map(function (i) { return header[i]; }).join(', ') + '. Rename the one with the agent MLS ID to "MLS ID".');
+  var cMls = mlsHits.length ? mlsHits[0] : -1;
+  var emailHits = pick(function (h) { return /e-?mail/i.test(h) && !secret.test(h); }, /^e-?mail$/i);
+  var cEmail = emailHits.length === 1 ? emailHits[0] : -1;
+  if (cOffice < 0 || cName < 0) throw new Error('Roster needs "Office" and "Name" columns.');
+  if (cMls < 0) throw new Error('No column with "MLS" in its header on the Roster. Headers found: ' + header.join(', '));
+  var n = roster.getLastRow() - 1;
+  if (n < 1) return 'Roster is empty.';
+  var col = function (c) { return c < 0 ? null : roster.getRange(2, c + 1, n, 1).getDisplayValues().map(function (r) { return String(r[0]).trim(); }); };
+  var offices = col(cOffice), names = col(cName), mls = col(cMls), emails = col(cEmail);
+
+  var sheet = getSpreadsheet_().getSheetByName(SHEETS.AGENTS);
+  var data = sheet.getDataRange().getValues();
+  var h = indexHeaders_(data[0]);
+  var byName = {};
+  for (var i = 1; i < data.length; i++) byName[normName_(data[i][h['Name']])] = i + 1;
+
+  var seen = {}, added = 0, updated = 0, noMls = [], noSky = [];
+  for (var r = 0; r < n; r++) {
+    var name = names[r];
+    if (!name || OFFICES.indexOf(offices[r]) < 0) continue;
+    var key = normName_(name);
+    seen[key] = true;
+    var pin = mls[r];
+    if (!pin) noMls.push(name);
+    var sky = matchSkySlopeName_(name);
+    if (!sky) noSky.push(name);
+    var rowNum = byName[key];
+    if (rowNum) {
+      var cur = data[rowNum - 1];
+      if (String(cur[h['Role']]).toLowerCase() === 'admin') continue;
+      sheet.getRange(rowNum, h['Office'] + 1).setValue(offices[r]);
+      if (pin) sheet.getRange(rowNum, h['PIN'] + 1).setValue(pin);
+      if (emails && emails[r] && !String(cur[h['Email']]).trim()) sheet.getRange(rowNum, h['Email'] + 1).setValue(emails[r]);
+      if (sky && !String(cur[h['SkySlope Name']]).trim()) sheet.getRange(rowNum, h['SkySlope Name'] + 1).setValue(sky);
+      sheet.getRange(rowNum, h['Active'] + 1).setValue('Yes');
+      updated++;
+    } else {
+      sheet.appendRow([name, emails ? emails[r] : '', pin, 'Agent', 'Yes', offices[r], sky]);
+      added++;
+    }
+  }
+  var deactivated = 0;
+  for (var j = 1; j < data.length; j++) {
+    var nm = normName_(data[j][h['Name']]);
+    if (nm && !seen[nm] && String(data[j][h['Role']]).toLowerCase() !== 'admin' && String(data[j][h['Active']]) !== 'No') {
+      sheet.getRange(j + 1, h['Active'] + 1).setValue('No');
+      deactivated++;
+    }
+  }
+  var msg = 'Agents: ' + added + ' added, ' + updated + ' updated, ' + deactivated + ' marked inactive.' +
+    (emails ? '' : ' The roster has no email column: add each agent\'s email in the Agents tab.') +
+    (noMls.length ? ' No MLS ID on the roster for: ' + noMls.join(', ') + '.' : '') +
+    (noSky.length ? ' Not found in SkySlope\'s File Owner list (fill SkySlope Name by hand): ' + noSky.join(', ') + '.' : '');
+  Logger.log(msg);
+  try { SpreadsheetApp.getActiveSpreadsheet().toast(msg, 'Deal Tracker', 15); } catch (e) {}
+  return msg;
+}
+
+/** SkySlope "File Owner" names, as SkySlope lists them (captured 2026-11-13). */
+var SKYSLOPE_OWNERS = ['Debra J Asher', 'Carmel Romano', 'Chris Manteria', 'David Innocenzi', 'Lori Arav', 'Lyndsey Gallagher', 'Michael Aharoni', 'Rose Sidoti', 'Addy Sandler', 'Joshua Manda', 'Ely Chen', 'Clovia Leslie', 'Gabriele Guerra', 'Kevin A. Key', 'Gwendolyn Belton', 'Sara Wartski', 'Luis Gonzalez', 'Nina Trainor', 'Michael Dohne', 'Felix Jackson', 'John Esturo', 'Vivian Rosenthal', 'Deanna ten Hoopen', 'Neal Fontana', 'Stuart Anderson', 'Izzy Franco', 'Jacqueline Pollack', 'Ronald Starrantino', 'Patricia Frankel', 'Aruna Sood', 'Anne McCarthy', 'Vanneth Joseph-Gonzalez', 'Phil Sinagra', 'Carolann Lopes', 'Larry J Theodore', 'Robert Kane', 'Kelly A. A. Hicks', 'Igor Kuzmykha', 'Lina Pinzon', 'Latoya Saylor', 'George Martinez', 'Kathryn A Pullen', 'Evan Marrow', 'Rajesh Ramjeawan', 'Victoria Woodland', 'Richard Stanford', 'Gautam Arora', 'Orlando Laguna', 'Isabel Clostre', 'John Rojecki', 'Michael McCarthy', 'Khrystyna Luchka', 'John Geldert', 'Jesse Saperstein', 'Laura Keenan', 'Lance Woodland', 'Maria M Cudabac', 'Jenifer Stryska', 'Parag Pandya', 'Thomas Dibiasi', 'Mona Mills-Johnson', 'James Iadevaio', 'Mireya Mead', 'Rachel Geraghty', 'Conte Cuttino', 'Eugenia Adams', 'Carolina Siegler', 'Robert Matozzo', 'Marie Certa', 'Ivette Echeverria', 'Rosaura Marmol', 'Richard Varon', 'Phyllis LiBrandi', 'Joseph LiBrandi', 'Gary Fernandez', 'Diane Douglas', 'Marc Zarou', 'Lisamarie Kayola', 'Milagros Cabrera', 'Nicole Absalom', 'Michael Cowan', 'Shoushan Saraydarian', 'Lavern Sterling-Felix', 'Christina Cardona', 'Jonathan Bedoya', 'Monica R Montenegro', 'Anthony Lomangino', 'Mohamed Badsha', 'Angel Vega', 'Diane Levy', 'Morena Morales', 'Ryan Hodulick', 'Denielle Passaretti', 'Kellyann Imeidopf', 'Tyler June', 'Donavan Rowe', 'Ceciabel Benavides', 'Ryan Sturm', 'Abderrahmane "Joe" Messaoud', 'Milly (Iankel) Baez', 'Christina Vernot', 'Zhaotong Tian', 'Jhaneal Smith', 'Jennifer Chan', 'Saima Joel', 'Maribel Torres', 'Nissar Ahmed Khpalwak', 'Paul Salemi', 'Paulina Obolewicz', 'Jonida Sevo'];
+
+function normName_(s) { return String(s || '').toLowerCase().replace(/[^a-z]/g, ''); }
+
+/** Roster name -> SkySlope File Owner name ('' if no confident match). */
+function matchSkySlopeName_(name) {
+  var words = function (s) { return String(s).toLowerCase().replace(/[\(\"][^\)\"]*[\)\"]/g, ' ').replace(/[^a-z\s-]/g, '').split(/\s+/).filter(String); };
+  var nicks = function (s) { return (String(s).match(/[\(\"]([^\)\"]+)[\)\"]/g) || []).map(function (x) { return x.replace(/[\(\)\"]/g, '').toLowerCase().trim(); }); };
+  var fl = function (s) { var w = words(s); return w.length ? w[0] + '|' + w[w.length - 1] : ''; };
+  var last = function (s) { var w = words(s); return w[w.length - 1] || ''; };
+  var first = function (s) { return words(s)[0] || ''; };
+  var i, s;
+  for (i = 0; i < SKYSLOPE_OWNERS.length; i++) {
+    s = SKYSLOPE_OWNERS[i];
+    if (normName_(s) === normName_(name) || fl(s) === fl(name)) return s;
+    if (nicks(s).some(function (k) { return k + '|' + last(s) === fl(name); })) return s;
+    if (nicks(name).some(function (k) { return k + '|' + last(name) === fl(s); })) return s;
+  }
+  var c = SKYSLOPE_OWNERS.filter(function (o) { return last(o) === last(name) && first(o).charAt(0) === first(name).charAt(0); });
+  return c.length === 1 ? c[0] : '';
 }
 
 function upgradeColumns() {
@@ -315,7 +439,7 @@ function login(email, pin) {
   var fails = Number(cache.get(failKey) || 0);
   if (fails >= 5) throw new Error('Too many attempts. Try again in 15 minutes or ask Mac to reset your PIN.');
   var agent = findAgent_(email);
-  if (!agent || !agent.active || agent.pin !== pin) {
+  if (!agent || !agent.active || !agent.pin || agent.pin.replace(/\s/g, '').toLowerCase() !== pin.replace(/\s/g, '').toLowerCase()) {
     cache.put(failKey, String(fails + 1), 15 * 60);
     throw new Error('Email or PIN not recognized.');
   }
