@@ -284,6 +284,7 @@
           <fieldset id="mxMedia">
             <legend>Photos</legend>
             <p class="muted" style="margin:0;font-size:13px">Photo #1 is the primary photo in Matrix. Use the arrows to set the order; captions are optional.</p>
+            <div id="mxLiveNote" class="stage-banner ok hidden" style="margin:8px 0">This listing is live in Matrix, so its photos and documents are kept there now. The copies here were removed.</div>
             <div id="mxMediaLocked" class="stage-banner hidden" style="margin:8px 0">Add photos and documents now. They're saved when you press <b>Submit deal</b>.</div>
             <div id="mxMediaArea">
               <label class="drop" id="mxPhotoDrop"><input type="file" id="mxPhotoInput" accept="image/*" multiple><span>Tap to add photos (or drop them here)</span></label>
@@ -985,6 +986,7 @@
     Array.prototype.forEach.call(document.querySelectorAll('#mxForm [data-repeat]'), function (el) { mxRenderRepeat(el.getAttribute('data-repeat')); });
     var locked = !(CURRENT && CURRENT.deal_id);
     $('mxMediaLocked').classList.toggle('hidden', !locked);
+    $('mxLiveNote').classList.toggle('hidden', MX.status !== 'Live in Matrix');
     $('mxMediaArea').classList.remove('hidden');
     $('mxDocHint').textContent = locked ? 'Files are saved when you submit the deal.' : 'Uploads start as soon as you pick a file.';
     $('mxIssues').innerHTML = '';
@@ -1269,7 +1271,8 @@
         if (/Remarks/.test(f.label) && v && COMP_RE.test(v)) warnings.push({ sec: sec.title, f: f, msg: 'looks like it mentions compensation, which is not allowed in MLS remarks' });
       });
     });
-    if (!MX.media.some(function (m) { return m.kind === 'photo'; })) warnings.push({ sec: 'Photos', f: null, msg: 'no photos yet' });
+    var inMatrix = /entered|live|updated|changed/i.test(MX.status || '');
+    if (!inMatrix && !MX.media.some(function (m) { return m.kind === 'photo'; })) warnings.push({ sec: 'Photos', f: null, msg: 'no photos yet' });
     var item = function (x, msg) { return '<li>' + (x.f ? '<a href="#" data-goto="' + esc(x.f.id) + '">' + esc(x.sec) + ' → ' + esc(x.f.label) + '</a>' : esc(x.sec)) + (msg ? ': ' + esc(msg) : '') + '</li>'; };
     var html = '';
     if (missing.length) html += '<div class="mx-issues bad"><b>' + missing.length + ' required field' + (missing.length > 1 ? 's' : '') + ' still empty</b><ul>' +

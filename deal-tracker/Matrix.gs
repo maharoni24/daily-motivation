@@ -10,6 +10,9 @@
  *     ready-to-type "Matrix Payload JSON" and sets Matrix Status = "Queued". The Matrix task
  *     (MATRIX_TASK.md) then enters it in Matrix in Mac's Chrome and saves it as Incomplete
  *     for review. Nothing is ever submitted to the MLS automatically.
+ *   - Once the listing is live in Matrix with all its photos, the Matrix task sets Matrix Status =
+ *     "Live in Matrix", and cleanupLiveListings_ (5-minute job) moves the deal's Drive folder to the
+ *     Trash: Matrix keeps the photos from then on. Drive empties its Trash after 30 days.
  *
  * Field definitions live in MatrixSchemas.gs (generated from matrix/*.js by build.py).
  */
@@ -35,7 +38,7 @@ var MATRIX_TYPES = [
 ];
 var MATRIX_DOC_TYPES = ['Seller Property Disclosure', 'Floor Plan', 'Survey', 'Lead Paint Disclosure', 'HOA/Condo Docs',
   'Tax Bill', 'Listing Agreement', 'Other'];
-var MATRIX_STATUS = { DRAFT: 'Draft', QUEUED: 'Queued', UPDATE: 'Update Queued' };
+var MATRIX_STATUS = { DRAFT: 'Draft', QUEUED: 'Queued', UPDATE: 'Update Queued', LIVE: 'Live in Matrix' };
 
 /** Sent to the page once at start-up (added to getAppConfig). */
 function matrixConfig_() {
@@ -193,9 +196,10 @@ function sendToMatrix(token, dealId) {
         (check.missing.length > 12 ? ' and ' + (check.missing.length - 12) + ' more' : ''));
     }
     var photos = (rec.media || []).filter(function (m) { return m.kind === 'photo'; });
-    if (!photos.length) throw new Error('Add at least one photo before sending to Matrix.');
-    numberPhotos_(rec);
     var wasEntered = rec.matrix_listing || (rec.matrix_status && [MATRIX_STATUS.DRAFT, MATRIX_STATUS.QUEUED].indexOf(rec.matrix_status) < 0);
+    // A listing already in Matrix keeps its photos there (the Drive copies are removed once it's live).
+    if (!photos.length && !wasEntered) throw new Error('Add at least one photo before sending to Matrix.');
+    numberPhotos_(rec);
     rec.matrix_status = wasEntered ? MATRIX_STATUS.UPDATE : MATRIX_STATUS.QUEUED;
     rec.matrix_notes = '';
     rec.payload = JSON.stringify(matrixPayload_(ctx.deal, type, schema, rec));
@@ -229,7 +233,7 @@ function matrixPayload_(deal, type, schema, rec) {
   var media = rec.media || [];
   return {
     deal_id: deal.deal_id, property_type: type.name, address: shortAddress_(deal), agent: deal.agent_name,
-    drive_folder: matrixFolder_(deal).getUrl(),
+    drive_folder: (rec.media || []).length ? matrixFolder_(deal).getUrl() : '',
     sections: sections,
     photos: media.filter(function (m) { return m.kind === 'photo'; }).map(function (m, i) { return { order: i + 1, file: m.name, drive_id: m.id, caption: m.caption || '' }; }),
     documents: media.filter(function (m) { return m.kind === 'doc'; }).map(function (m) { return { type: m.category, file: m.name, drive_id: m.id }; })
@@ -493,6 +497,38 @@ function matrixFolder_(deal, sub) {
 function trashByName_(folder, name) {
   var it = folder.getFilesByName(name);
   while (it.hasNext()) it.next().setTrashed(true);
+}
+
+/**
+ * Listings the Matrix task has confirmed live in Matrix (with all their photos): move the deal's
+ * Drive folder (photos, documents, entry-sheet PDFs) to the Trash and clear the file list.
+ * Runs every 5 minutes with processDocumentQueue. Returns how many listings were cleaned up.
+ */
+function cleanupLiveListings_() {
+  var sheet = getSpreadsheet_().getSheetByName(MATRIX_SHEET);
+  if (!sheet || sheet.getLastRow() < 2) return 0;
+  var data = sheet.getDataRange().getValues();
+  var h = indexHeaders_(data[0]);
+  var done = 0;
+  for (var i = 1; i < data.length; i++) {
+    var status = String(data[i][h['Matrix Status']] || '');
+    var folderId = String(data[i][h['Drive Folder']] || '');
+    var media = String(data[i][h['Media JSON']] || '[]');
+    if (status !== MATRIX_STATUS.LIVE || (!folderId && (media === '[]' || media === ''))) continue;
+    var dealId = String(data[i][h['Deal ID']]);
+    var note = '';
+    try {
+      if (folderId) DriveApp.getFolderById(folderId).setTrashed(true);
+      note = 'Photos and documents removed from Drive ' + todayStr_() + ' (kept in Matrix; in Drive Trash for 30 days).';
+    } catch (e) {
+      note = 'Drive folder already gone or not found (' + todayStr_() + ').';
+    }
+    var old = String(data[i][h['Matrix Notes']] || '');
+    setMatrixCells_(dealId, { 'Media JSON': '[]', 'Drive Folder': '', 'PDF': '', 'Matrix Notes': (old ? old + ' | ' : '') + note });
+    logSync_(dealId, 'Matrix', 'Drive cleanup', note);
+    done++;
+  }
+  return done;
 }
 
 /** Matrix status for each deal, for the deal list. */
