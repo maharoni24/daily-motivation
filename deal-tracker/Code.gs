@@ -121,6 +121,7 @@ var FIELDS = [
   { key: 'client2_last', col: 'Client 2 Last Name', label: 'Second client last name', type: 'text', sides: ALL, section: 'Your client', sky: 'Additional contact' },
   { key: 'client2_email', col: 'Client 2 Email', label: 'Second client email', type: 'email', sides: ALL, section: 'Your client', sky: 'Additional contact' },
   { key: 'client2_phone', col: 'Client 2 Phone', label: 'Second client phone', type: 'tel', sides: ALL, section: 'Your client', sky: 'Additional contact' },
+  { key: 'client_address', col: 'Client Current Address', label: 'Client\'s current home address', type: 'text', sides: ALL, section: 'Your client', sky: 'Purchase Offer: Residing at' },
 
   // ---- Listing / terms
   { key: 'list_price', col: 'List Price', label: 'List price', type: 'money', sides: ALL, section: 'Price & dates', sky: 'LIST PRICE',
@@ -173,10 +174,12 @@ var FIELDS = [
   // ---- Attorneys, lender, title
   { key: 'client_attorney_name', col: 'Client Attorney', label: 'Your client\'s attorney (first & last)', type: 'text', sides: ALL, section: 'Attorneys, lender & title', sky: 'Attorney (required on that tab)' },
   { key: 'client_attorney_firm', col: 'Client Attorney Firm', label: 'Attorney\'s firm', type: 'text', sides: ALL, section: 'Attorneys, lender & title' },
+  { key: 'client_attorney_address', col: 'Client Attorney Address', label: 'Attorney\'s office address', type: 'text', sides: ALL, section: 'Attorneys, lender & title' },
   { key: 'client_attorney_phone', col: 'Client Attorney Phone', label: 'Attorney phone', type: 'tel', sides: ALL, section: 'Attorneys, lender & title' },
   { key: 'client_attorney_email', col: 'Client Attorney Email', label: 'Attorney email', type: 'email', sides: ALL, section: 'Attorneys, lender & title' },
   { key: 'other_attorney_name', col: 'Other Attorney', label: 'Other side\'s attorney (first & last)', type: 'text', sides: ALL, section: 'Attorneys, lender & title' },
   { key: 'other_attorney_firm', col: 'Other Attorney Firm', label: 'Their firm', type: 'text', sides: ALL, section: 'Attorneys, lender & title' },
+  { key: 'other_attorney_address', col: 'Other Attorney Address', label: 'Their office address', type: 'text', sides: ALL, section: 'Attorneys, lender & title' },
   { key: 'other_attorney_phone', col: 'Other Attorney Phone', label: 'Their phone', type: 'tel', sides: ALL, section: 'Attorneys, lender & title' },
   { key: 'other_attorney_email', col: 'Other Attorney Email', label: 'Their email', type: 'email', sides: ALL, section: 'Attorneys, lender & title' },
   { key: 'cash_deal', col: 'Cash Deal', label: 'Cash deal (no lender)?', type: 'select', options: ['No', 'Yes'], sides: SALE, section: 'Attorneys, lender & title', sky: 'N/A Cash Deal' },
@@ -190,6 +193,21 @@ var FIELDS = [
   { key: 'title_contact', col: 'Title Contact', label: 'Title contact (name, phone, email)', type: 'text', sides: SALE, section: 'Attorneys, lender & title' },
 
   // ---- Notes
+  // ---- Purchase Offer Agreement (buyer deals): fills the CBAH offer sheet
+  { key: 'offer_date', col: 'Offer Date', label: 'Offer date', type: 'date', sides: ['Buyer'], section: 'Purchase offer' },
+  { key: 'offer_price', col: 'Offer Price', label: 'Purchase price offered', type: 'money', sides: ['Buyer'], section: 'Purchase offer' },
+  { key: 'offer_cash_on_signing', col: 'Offer Cash on Signing', label: 'Cash on signing of contracts', type: 'money', sides: ['Buyer'], section: 'Purchase offer' },
+  { key: 'offer_mortgage', col: 'Offer First Mortgage', label: 'Subject to obtaining first mortgage of', type: 'money', sides: ['Buyer'], section: 'Purchase offer',
+    help: 'Leave at 0 or blank for a cash offer.' },
+  { key: 'offer_cash_on_deed', col: 'Offer Cash on Deed', label: 'Cash on delivery of deed', type: 'money', sides: ['Buyer'], section: 'Purchase offer',
+    help: 'Fills in automatically: price minus cash on signing minus mortgage. You can change it.' },
+  { key: 'offer_comp_from_proceeds', col: 'Offer Comp From Proceeds', label: 'Buyer broker compensation paid out of proceeds?', type: 'select', options: ['Yes', 'No'], sides: ['Buyer'], section: 'Purchase offer',
+    help: 'The compensation % comes from "Buyer/tenant-side commission %" under Commission.' },
+  { key: 'offer_loan_terms', col: 'Offer Loan Type & Duration', label: 'Loan type and duration (e.g. Conventional, 30-year fixed)', type: 'text', sides: ['Buyer'], section: 'Purchase offer' },
+  { key: 'offer_contract_by', col: 'Offer Contract By', label: 'Formal contract signed on/about', type: 'date', sides: ['Buyer'], section: 'Purchase offer' },
+  { key: 'offer_deed_by', col: 'Offer Deed By', label: 'Deed delivered on/about', type: 'date', sides: ['Buyer'], section: 'Purchase offer' },
+  { key: 'offer_remarks', col: 'Offer Remarks', label: 'Remarks', type: 'textarea', sides: ['Buyer'], section: 'Purchase offer' },
+
   { key: 'notes', col: 'Notes', label: 'Notes for the office', type: 'textarea', sides: ALL, section: 'Notes' }
 ];
 
@@ -268,7 +286,7 @@ var STAGE_RULES = {
 
 var SYSTEM_COLUMNS_START = ['Deal ID', 'Created At', 'Updated At', 'Agent Name', 'Agent Email', 'SkySlope File Owner',
   'Side', 'Represents', 'SkySlope Type', 'Status', 'Current Milestone', 'Current Milestone Date', 'Next Milestone', 'Milestones Done',
-  'SkySlope Status', 'SkySlope File', 'SkySlope Upload Email', 'SkySlope Notes'];
+  'SkySlope Status', 'SkySlope File', 'SkySlope Upload Email', 'SkySlope Notes', 'Offer Status', 'Offer Sent'];
 var SYSTEM_COLUMNS_END = ['Milestone Summary', 'Inventory Tab', 'Inventory Result', 'Milestones JSON', 'SkySlope Payload JSON'];
 
 var MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
@@ -722,6 +740,145 @@ function saveDeal(token, input) {
 }
 
 // ---------------------------------------------------------------------------
+// PURCHASE OFFER AGREEMENT (buyer deals)
+// The agent fills the "Purchase offer" section and clicks "Email offer PDF".
+// The deal is saved, a PDF of the CBAH Purchase Offer Agreement is emailed to
+// the deal's agent, and "Offer Status" is set so the SkySlope task fills the
+// same form ("Purchase Offer Agreement - Coldwell Banker American Homes Main")
+// in that buyer's SkySlope Forms file.
+// ---------------------------------------------------------------------------
+
+var OFFER_FORM_NAME = 'Purchase Offer Agreement - Coldwell Banker American Homes Main';
+var OFFER_REQUIRED = ['offer_date', 'offer_price', 'street_number', 'street_name', 'city', 'sale_comm_pct', 'offer_comp_from_proceeds'];
+
+function sendPurchaseOffer(token, input) {
+  if (!input || input.side !== 'Buyer') throw new Error('Purchase offers are for buyer deals.');
+  var saved = saveDeal(token, input);
+  var d = findDealRow_(saved.deal_id).deal;
+  var missing = OFFER_REQUIRED.filter(function (k) { return !String(d[k] || '').trim(); }).map(function (k) {
+    var f = FIELDS.filter(function (x) { return x.key === k; })[0];
+    return f ? labelFor_(f, 'Buyer') : k;
+  });
+  if (missing.length) throw new Error('Deal saved. To create the offer, also fill in: ' + missing.join(', '));
+  if (!d.agent_email) throw new Error('Deal saved, but this agent has no email in the Agents tab, so the offer can\'t be emailed.');
+
+  var v = offerValues_(d);
+  var pdf = buildOfferPdf_(v);
+  var subject = 'Purchase Offer Agreement: ' + v.premises + ' ($' + v.purchase_price + ')';
+  var body = 'Hi ' + (d.agent_name || '').split(' ')[0] + ',\n\nAttached is the Purchase Offer Agreement for ' + v.purchaser + ' on ' + v.premises +
+    ', at $' + v.purchase_price + '.\n\nThe same offer is being filled in on this buyer\'s SkySlope file.\n\n' + APP_NAME + ' (deal ' + d.deal_id + ')';
+  GmailApp.sendEmail(d.agent_email, subject, body, { attachments: [pdf], name: APP_NAME });
+
+  var sentNote = isoNow_() + ' emailed to ' + d.agent_email;
+  setDealCells_(d.deal_id, { 'Offer Status': 'Queued for SkySlope', 'Offer Sent': sentNote });
+  logSync_(d.deal_id, 'Purchase offer', 'OK', 'PDF emailed to ' + d.agent_email + ' ($' + v.purchase_price + ')');
+  return { deal_id: d.deal_id, isNew: saved.isNew, status: saved.status, emailed_to: d.agent_email, inventory: saved.inventory };
+}
+
+/** Values for each blank on the offer sheet, formatted the way they print. */
+function offerValues_(d) {
+  var money = function (x) {
+    var n = Number(String(x || '').replace(/[$,\s]/g, ''));
+    return x === '' || x == null || isNaN(n) ? '' : n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  };
+  var name = function (f, l) { return [f, l].filter(String).join(' ').trim(); };
+  var p1 = d.client_is_entity === 'Yes' && d.client_company ? d.client_company : name(d.client_first, d.client_last);
+  var p2 = name(d.client2_first, d.client2_last);
+  var price = Number(String(d.offer_price || '').replace(/[$,]/g, '')) || 0;
+  var signing = Number(String(d.offer_cash_on_signing || '').replace(/[$,]/g, '')) || 0;
+  var mortgage = Number(String(d.offer_mortgage || '').replace(/[$,]/g, '')) || 0;
+  var deed = d.offer_cash_on_deed !== '' && d.offer_cash_on_deed != null ? d.offer_cash_on_deed : (price ? price - signing - mortgage : '');
+  var street = [d.street_number, d.direction, d.street_name].filter(String).join(' ') + (d.unit ? ' Unit ' + d.unit : '');
+  var premises = [street, d.city, [d.state === 'New York' ? 'NY' : d.state, d.zip].filter(String).join(' ')].filter(String).join(', ');
+  var attyLine = function (n, firm) { return [n, firm].filter(String).join(', '); };
+  return {
+    form_name: OFFER_FORM_NAME,
+    date: slash_(d.offer_date),
+    purchaser: [p1, p2].filter(String).join(' and '),
+    residing_at: d.client_address || '',
+    premises: premises,
+    purchase_price: money(d.offer_price),
+    cash_on_signing: money(d.offer_cash_on_signing),
+    first_mortgage: mortgage ? money(mortgage) : (d.offer_mortgage === '0' ? '0' : ''),
+    cash_on_deed: money(deed),
+    buyer_broker_comp_pct: d.sale_comm_pct || '',
+    comp_from_proceeds: d.offer_comp_from_proceeds || '',
+    loan_type_and_duration: d.offer_loan_terms || (d.cash_deal === 'Yes' ? 'Cash' : (d.loan_type || '')),
+    remarks: d.offer_remarks || '',
+    contract_on_about: slash_(d.offer_contract_by),
+    deed_on_about: slash_(d.offer_deed_by || d.closing_date),
+    purchaser_1: p1, purchaser_2: p2,
+    purchaser_attorney: attyLine(d.client_attorney_name, d.client_attorney_firm),
+    purchaser_attorney_address: d.client_attorney_address || '',
+    purchaser_attorney_phone: d.client_attorney_phone || '',
+    purchaser_attorney_email: d.client_attorney_email || '',
+    seller_1: name(d.other_first, d.other_last),
+    seller_attorney: attyLine(d.other_attorney_name, d.other_attorney_firm),
+    seller_attorney_address: d.other_attorney_address || '',
+    seller_attorney_phone: d.other_attorney_phone || '',
+    seller_attorney_email: d.other_attorney_email || '',
+    broker_agent: (d.agent_name || '') + ', Coldwell Banker American Homes'
+  };
+}
+
+/** Letter-size PDF laid out like the CBAH Purchase Offer Agreement (Rev 06/09/25). */
+function buildOfferPdf_(v) {
+  var e = function (x) { return String(x == null ? '' : x).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var fill = function (x, w) { return '<span class="f" style="min-width:' + (w || 200) + 'px">' + (e(x) || '&nbsp;') + '</span>'; };
+  var dot = function (on) { return on ? '&#9679;' : '&#9675;'; };
+  var row = function (label, val) { return '<tr><td class="l">' + label + '</td><td class="d">$</td><td class="v">' + fill(val, 170) + '</td></tr>'; };
+  var sig = function (left, leftLabel, right, rightLabel) {
+    return '<tr><td class="s">' + fill(left, 210) + '<div class="sl">' + leftLabel + '</div></td><td></td><td class="s">' + fill(right, 210) + '<div class="sl">' + rightLabel + '</div></td></tr>';
+  };
+  var remarks = String(v.remarks || '');
+  var html = '<html><head><style>' +
+    'body{font-family:Arial,Helvetica,sans-serif;font-size:10.5pt;color:#000;margin:28px 48px}' +
+    '.f{display:inline-block;border-bottom:1px solid #000;padding:0 4px;font-family:"Courier New",monospace;font-size:10pt;color:#0b2a8a}' +
+    'h1{text-align:center;font-size:20pt;margin:6px 0 10px} table{border-collapse:collapse;width:100%}' +
+    '.l{padding:3px 0}.d{width:12px;text-align:right}.v{width:190px}.s{width:46%;padding-top:14px;vertical-align:top}.sl{font-size:9.5pt;padding-top:2px}' +
+    '.small{font-size:8pt;color:#333}.ack{font-weight:bold;font-size:9.5pt}' +
+    '</style></head><body>' +
+    '<img src="data:image/jpeg;base64,' + OFFER_LOGO_B64 + '" style="height:46px">' +
+    '<h1>Purchase Offer Agreement</h1>' +
+    '<div style="text-align:right">Date: ' + fill(v.date, 120) + '</div>' +
+    '<div style="margin-top:6px">Received from Purchaser: ' + fill(v.purchaser, 470) + '</div>' +
+    '<div style="margin-top:4px">Residing at: ' + fill(v.residing_at, 545) + '</div>' +
+    '<div style="margin-top:4px">In reference to the premises: ' + fill(v.premises, 445) + '</div>' +
+    '<table style="margin-top:12px">' +
+    row('PURCHASE PRICE', v.purchase_price) +
+    row('TERMS: &nbsp; Cash on Signing of Contracts', v.cash_on_signing) +
+    row('&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Subject to obtaining first mortgage of', v.first_mortgage) +
+    row('&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Cash on delivery of deed', v.cash_on_deed) +
+    '<tr><td class="l">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Buyer Broker Compensation</td><td></td><td class="v">' + fill(v.buyer_broker_comp_pct, 150) + ' %</td></tr>' +
+    '</table>' +
+    '<div style="margin-top:6px;padding-left:96px">Buyer Broker Compensation to be paid out of proceeds: &nbsp; Yes ' + dot(v.comp_from_proceeds === 'Yes') + ' &nbsp; No ' + dot(v.comp_from_proceeds === 'No') + '</div>' +
+    '<div style="margin-top:14px">Loan Type and Duration: ' + fill(v.loan_type_and_duration, 470) + '</div>' +
+    '<div style="margin-top:10px">Remarks:</div>' +
+    '<div style="border-bottom:1px solid #000;min-height:54px;font-family:\'Courier New\',monospace;font-size:10pt;color:#0b2a8a;white-space:pre-wrap">' + (e(remarks) || '&nbsp;') + '</div>' +
+    '<p style="margin-top:12px">If the seller accepts the price and terms, a formal contract shall be signed on/about: ' + fill(v.contract_on_about, 90) +
+    '. The deed shall be delivered on/or about: ' + fill(v.deed_on_about, 90) + '. This agreement may not change orally after acceptance by both parties. I have read the foregoing and agree with and accept its terms:</p>' +
+    '<table>' +
+    sig(v.purchaser_1, 'Purchaser', v.purchaser_attorney, 'Attorney for Purchaser') +
+    sig('', 'Signature', v.purchaser_attorney_address, 'Address') +
+    sig(v.purchaser_2, 'Purchaser', v.purchaser_attorney_phone, 'Phone #') +
+    sig('', 'Signature', v.purchaser_attorney_email, 'Email Address') +
+    '</table>' +
+    '<h3 style="text-align:center;margin:14px 0 4px">Offer Acknowledgment</h3>' +
+    '<div class="ack">In signing this form, sellers are not accepting or rejecting this offer. They are acknowledging that the offer was presented and explained to them with the knowledge of their listing Broker/Agent</div>' +
+    '<table>' +
+    sig(v.seller_1, 'Seller', v.seller_attorney, 'Attorney for Seller') +
+    sig('', 'Signature', v.seller_attorney_address, 'Address') +
+    sig('', 'Seller', v.seller_attorney_phone, 'Phone #') +
+    sig('', 'Signature', v.seller_attorney_email, 'Email Address') +
+    '</table>' +
+    '<div style="margin-top:16px">Broker/Agent: ' + fill(v.broker_agent, 320) + '</div>' +
+    '<div class="small" style="margin-top:16px">Rev 06/09/25</div>' +
+    '</body></html>';
+  var name = 'Purchase Offer Agreement - ' + (v.premises.split(',')[0] || 'offer') + '.pdf';
+  return Utilities.newBlob(html, 'text/html', 'offer.html').getAs('application/pdf').setName(name);
+}
+
+// ---------------------------------------------------------------------------
 // STAGE REQUIREMENTS + MLS LOOKUP
 // ---------------------------------------------------------------------------
 
@@ -999,7 +1156,8 @@ function buildSkySlopePayload_(d) {
     },
     signature: {
       signers: client.filter(function (c) { return c.email; }).map(function (c) { return { name: (c.first + ' ' + c.last).trim(), email: c.email }; })
-    }
+    },
+    purchase_offer: d.side === 'Buyer' && d.offer_price ? offerValues_(d) : null
   };
 }
 
@@ -1153,6 +1311,7 @@ var SYSTEM_KEYS = {
   'SkySlope Type': 'skyslope_type', 'Status': 'status', 'Current Milestone': 'current_milestone',
   'Current Milestone Date': 'current_milestone_date', 'Next Milestone': 'next_milestone', 'Milestones Done': 'milestones_done',
   'SkySlope Status': 'skyslope_status', 'SkySlope File': 'skyslope_file', 'SkySlope Upload Email': 'skyslope_email', 'SkySlope Notes': 'skyslope_notes',
+  'Offer Status': 'offer_status', 'Offer Sent': 'offer_sent',
   'Milestone Summary': 'milestone_summary', 'Inventory Tab': 'inventory_tab', 'Inventory Result': 'inventory_result',
   'SkySlope Payload JSON': 'skyslope_payload'
 };
@@ -1285,3 +1444,6 @@ function randomPin_() { return Math.floor(100000 + Math.random() * 900000); }
 function isoNow_() { return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss"); }
 function todayStr_() { return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd'); }
 function indexHeaders_(row) { var h = {}; row.forEach(function (n, i) { h[String(n).trim()] = i; }); return h; }
+
+/** Coldwell Banker American Homes logo, taken from the brokerage's own offer form. */
+var OFFER_LOGO_B64 = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCAB5AgYDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD47+Efwj1H4ya1rFjY6xo2gxaTpkur3l9rc8sVvFAjxK/zoj/89V/hrr/+GaLP/otPwu/8HF1/8i0/9mX/AJBvxn/7J9f/APpVa14j296/WP3tarP3z45uMYx909r/AOGaLL/otPws/wDBxdf/ACLR/wAM0WX/AEWn4Wf+Di6/+Ra8UorT2FX/AJ+i9rH+U9r/AOGaLL/otPws/wDBxdf/ACLR/wAM0WX/AEWn4Wf+Di6/+Ra8Uop+wq/8/Q9rH+U9r/4Zosv+i0/Cz/wcXX/yLR/wzRZf9Fp+Fn/g4uv/AJFrxSij2FX/AJ+h7WP8p7X/AMM0WX/RafhZ/wCDi6/+RaP+GaLL/otPws/8HF1/8i14pRR7Cr/z9D2sf5T2v/hmiy/6LT8LP/Bxdf8AyLR/wzRZf9Fp+Fn/AIOLr/5FrxSil7Cr/wA/g54/yHtf/DNFl/0Wn4Wf+Di6/wDkWj/hmiy/6LT8LP8AwcXX/wAi14pRR7Cr/wA/Q9rH+U9F+J/wXufhhoeh6v8A8JV4b8V6drM91BBdeHLmW4RZYFiaVH3RJ/z3ir9vP2Yf+TbfhV/2Kmk/+kkVfid4q/5Nt+HP/Yx+IP8A0n0uv2y/Zg/5Nu+FX/YqaT/6RxV8dnE5zo0+f+aR6uA+NnqNFFFfKHuhRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRSZFAC0UUUAFFFFABRRRQAUUUUAFFJkUZFAC0UUUAFFFFABRRRQAUUUUAFFFFABRRSZFAC0UmRS0AFFJkUZFAC0UmRRQB+Df7Mv/IM+NP8A2T2//wDSq1rxGvbv2Zf+QZ8af+ye3/8A6VWteI1+u0P4tU+Nq/BEVmzQOtJjiuz+Evwl8SfG3x1p/hHwnZfbNVuvnd3+WG3iX78srfwqv/2K7mdVrqqVIUoc8zOEOf3YnHFQO9dd4W+Dvj7xtpn9o+HfA/iPX9P3eV9r0zR57qLd/d3ojV+tn7On/BPb4dfBPT7S+1uxt/G3i/782p6lBut4G3K37iB9ypt2Lh23Pnd8yhitfVU9xBYwNLNIkMSfed22qtfHYniC0uXDwPWp5e/+Xkj+fzUP2ePipptpLd3nw08Y2lrErSyXE2gXSJGq/wATN5Xy156yBH21/SBp2o2WqW6zWV1DeQN92WCRXX81ryX46fsofDn9oTT5k8TaFFHqrBPL1/T1SLUItv3cS7fmX/Yfcv8As1nQ4gmp/v4FSy9OPuSPwYpfl9a9k+P/AOz94u/ZO+J9vp2rxW1/a+b9q0fWJrNJ7LUYlf8AiilV13L8vmxPu27v4lZGb7v/AGMvjV8Dvj5LH4cv/hf4M8I/ENIhN9mg0S2S31HYuXe1bbu3J97ym+ZV+6z7HZfbxOZOFJV6MOaBxUsNzT5Zy5Tz2X9lWRP+CYq3X2c/8JAkv/Ce7ftK7PK2bfvf3fsHz7P+etfnbX9Igs4Psv2URR+Rt8vy9vy7f7tfB/7Znxp+B/wFmm8OWHws8F+LPHzRGQ21xo1q0Gnb1+R7htu7c3yt5SfNt+ZmTcm75/Lc2quUqShzc0j0cThI8vNzH5V0Vd1TU5dX1G5vp1gSa5kaVktbaK3iVm/uxRKqqv8Asou2qVfew2PCtY9Q8Vf8m2fDn/sY/EH/AKT6XX7Zfsvf8m3fCr/sVNJ/9I4q/E3xV/ybZ8Of+xj8Qf8ApPpdftl+y9/ybd8Kv+xU0n/0jir8/wA4/hQ/xS/M9rAfxGeo0UUV8qe6JnFGc1malqdtpdpPeXk8dtbQRvJJPM2xY1XlmZj91eK/M79oP/gqbr+q61d+Hvg7Yx21l5jW8XiG+tfPurptybHt7dvlRfvf61WZldflRq6cPhqmJly0znqVo0/iP1B3Y60jNt6nFfjxe/tn/ta/CuWw1rxgurW+leZsWHxJ4Wis7W6bZ9zetvE/+18rrX3B+yF+25of7TVtPo15p58P+NLKH7Rcaerb7e6T7rywN6bvvI33d4+Z/vVvXy6tQh7X4o/3SaeJhUlyn1OrhunNLkGvkT9sL9u/Sf2bnXw1odnB4j8dTwmU2bylbfTlZSUacqdzM3DLEu1to3Mybk3/ABnp37YP7XnxGjutd8LLrt5pE077BoPhCK6tYP8Apkkv2eX7n+2zNSoZdWrQ9p8MfMKmJpwlyn7EUV+YP7OP/BUjWbbWLLw78YLSC4sXdYP+EjsrfybmB9337iBflZf+uSrt2/davvb42eK7/wAMfA3x74l0K7WPUdO8P3+o2F0qpIqSx2ryxP8ANuVhuVf9k1lVwlXDz5KhVOtGceZHpFPr4U/4JsftHfEX4+XXxCTx54i/t5dKWwaz/wBBgt/K837Rv/1USbv9Un3q+6KxrUZYefs5l06kakeaIhOOrUBx65r4Y/4KUftGfEP4AyfDweBPEP8AYX9rf2j9s/0SC483yvsuz/WxPt/1r/d/vV8q6J+1x+2D4m0i21TRbzxJrGmT7vKvrHwja3EUu1trbXS12/eV1r0qGV169D28ZLlMKmKjCXKfsketFfln8MP+Cq/jPwt4hXSPit4Xtr6zgxBdXGmQNa6hA/8AE7xO2xv9391XvP7c/wAcfHfhX4KeD/id8HvFvkeHp7hVvZrbTYLpJYLhP3E7tLE3lKjr5X8PzzorVhPAVoVI05faKjXhKPNE+06K+Yf2B/j/AKr+0D8C01HxJfnUvFOlahPp+oXDxxRef/y1ify4lVVXypUT7o+aN65/9or9tez+Cf7R3w68CGSFtInfzvE91IEzaxT/ALq3+ff8mxv38uV+55W379YvDVFVlRt70SvbR5eY+veDScHpWD4w8V2PgnwlrHiPVJDDpekWct/cyKu5liiRnc4/3Vr86v2K/wBqX44ftGftFRadq/i2FfCVtBdarqOmW2m2sSrBjZFFE/lNL/rZYur7tqN89FLDVK0J1FtEVSvGEox/mP00znpik+mM1+QnxS/bS/aItvj3428GeDvE95dpZeIdRsNM0qx0KzupvKiuJVRFXyHd9qp/vfLT/wDhov8Abd/58fGf/hDRf/IVd8cqrOMZuUdfMw+uR/lP14yO9Jx618bfsD/EX45+PLrxqnxit9bihtYrJtMOs6Cum/M3m+dt228W/wC7F/u15D8CP2sviv4z/brPw91jxZ9q8If23rNr/Zf9n2qfu4I7p4l81YvMyvlL/F/DXJ9SqN1NV7ht7eK5f7x+lYHem8ZozgCvB/21fiH4i+E/7NPi7xX4U1E6X4gsDZ/ZroRRy7N95BE/yyIyn5Hb+GuKEJVJxpx6m8pckeY95o7V8V/8E3v2gPH/AMevD/jW58d69/btxp11bRWrfY4LcRq6Pv8A9Ui7uV619qjoa1rUJYecqU90TTqRqR5ojqQ9KWszWppbfR72WNts0UDsr/7QWsoq+hqX8kdBSZPcCvxc8L/tw/tS+OtQksPDXibVPEGoRxfaHtdI8NWdzMsW5U37UtW+Xcyf99VuT/t1ftTfCTVLS88ax3Qt7lXW3svFfhpbKKfbs3uvlRRO+3cn3W/jr3P7HrfDzR+88/65H+U/Yml49a8g/Zj+PWmftH/CXTvF1hB9huXke1v7Dzd5tbpcb03d8qyuv+y616Tq+rWnh7SrzUr65S0sLOJ57m4mbZHFGq7mdm/hVVBNeJKnKMuSR2xnGUec1ic0dq+N/wBjL9tf/hoz4ifEHQNSC2jxXban4dgeLy2/sz5IhG+3cvmp8jt87bmnbZ8iV9jk8VVSlOjLkqEU6kaseaIm2lNfCnjX9vqX4K/te+Mfh/40RZfASS2C2eoW8GJtL82zt3fft/1sW93b++u/5d/ypX2ro+sWmuaZa6jp93DfWF3GlxBd28iyxSxsoZXRl4ZWXo1VUoVKcYyktJBTqRnpE1hxjmkA5NfB/wDwUj/aP+I/wD1nwND4D8Sf2FDqcF492n2G2uPNZGi2f62J9v33r0r4k/GLxdoP7Atp8RdP1drbxlN4Y0m/bU/s0L/6RP8AZ/NfymTyvm81/wCHbWn1Wpywl/MR7aPNKP8AKfU45FB4r4b/AOCbP7RHxC+Pi/EA+O9f/t46U2n/AGPFpBb+V5v2jf8A6qJN3+qT7392ub/b2/b41P4Y+JI/AXww1ZLbxHYSiXWdVFvFOtv8p22qrKrI7/xO38Hyr94vs1+o1fb/AFf7RP1iPJzn6DflSEbq+ev2SYfjBP8ACt9e+L+vT3viDVgLiz0uaxtrZ9Ntwvy71iiT96/3mV/ufKvytvr84fC37b/7Unjm/ksfDXiXVPEF7HF9oe00jw1Z3MyxfKu/Ylq3y/Mv/fVaUMvq15TjCS90KmIjDl5o7n7ScD7uKOT1FfkN/wANF/tv/wDPl4z/APCHi/8AkKvsT9lr4k/GDXf2afHfiD4nf2pZeL7Ce+ewfVtIXT5VgSzieJvK8pFZfN835tvNTWwM6Cu5L5DhXUtOU+tufSkya/Fvwt+3D+1L481GSw8NeJdU8QXscX2h7XSPDdnczLFuVN+1LVvl3Mn/AH1XSt+23+1d8Jp49X8Y6ffPpsv7hY/FPhf7HatL/vxxQNu+X+9XXLKa0PtR+8x+uw/lP2B2iivA/wBlX9p7Sv2nPh7Nrmm2g0nWLCcWmpaRPdCQ277dyupH3o3ydrbV+66/wUV5E6dSnJxa2N1Wg1c/Jn9mX/kGfGn/ALJ7f/8ApVa14jXt37Mv/IM+NP8A2T2//wDSq1rxGv1mh/Fqny1X4IhX7P8A7AH7NVt8EPg7Zaxf2Zi8ZeJ4Ir7UZJNxeCH70Ft8yrs2q251x/rHf7yqtflV+zj4AT4p/HvwJ4YmtFv7K+1eD7dbuzJ5tqjebcLuX5v9Uj1/QHjykJ9K+W4hxMk4UInqZfS/5eHyT+3P+2iP2atGsvD/AIdtob3x3rEZmg+0HdFYW+Svnun8TMwZUTp8rs3CbH/I/wAffEjxV8U/EEuueL9e1DxBqrbsXF9Pv8pGdn2RJ92JNzt8ibVWtf48/Eyf4w/GPxZ4wkmkli1TUZXtRKiq8VsvywRfL/diWJf+A1wRO6vXyzLqWGpRlKPvnLicTKpL+6X9C8Qap4W1a31TRNSu9H1S2bdBe6fO0EsX+6y/MtfqF/wT+/bq1H4ralF8NviBcm78TmJ30rWgm37eiLveGXb/AMtVTcyv/EiNu+dN0vw18OP2MfjL8W/CGneK/Cfg/wDtbQNQ837Nd/2lZxBtkrxP8ssqt95H/hrstJ/YB/aW0HU7XUdM8FXOm6hayrcQXVrr1hFLFIv3XRluPlasMxjgMTGUHOKkVQ9vSfNGJ9b/APBTz4u/DC9+G114B1C9XUvH0E8F7p9vYL5j6bLk7nnbcqqrxb02/M371G2fdavnL/gmZoui6R8TfFHxL8T3un6ZoHg/SwHv9QufK+y3N0/lRPyQnzRLOv8AvSrXEv8A8E6/2iJndm+HzO7Nud21rTvm/wDJirB/4J//ALSSaa+nL4Im/s9pVuHtP7esPKaXbs37PtH3trGuelTwtLCSw0cRH3jWUqsqntOQ+yx/wVf+G7fEv+xP7D1X/hD93lf8JR3379vmfZdu/wArb827d5v/AEyr5e/4KY6Nour/ABR8NfEnwxd2GqaB4w0shNQsLgSrdXNq/lSvx/dia3X/AHlavnP4o/BTxx8E9Wi07xx4YvfD9xL/AKiW4Xfbz/IrP5Uqbopdm5d2x/lrkBf3L6eli1zMbJJXuFt937pJWTY77f721V/75rrweWUKdSGIwszKrXqSjy1CrRRRX0x5Z6h4q/5Ns+HP/Yx+IP8A0n0uv2y/Ze/5Nu+FX/YqaT/6RxV+Jvir/k2z4c/9jH4g/wDSfS6/bL9l7/k274Vf9ippP/pHFX55nH8KH+KX5nu4D45HqNIelLSHpXyp7p8ef8FOPiFqngj9maa10qVrY+IdVt9FupUkdHSBklldFKf3/I8tgflZHde9ecf8Esf2e9I0/wAAyfFfV9LS48Q6hcz2uj3EoV/stqn7p3i/uu7+ajN3Vf8Aafd65/wUT+EuqfF39m3UV0eGa41Pw/ex67HZQqu64SNXjlXlv4YpZX4+ZvL2L96vmj/gmt+1x4b8DaHefDHxtq8eiQPcy3+j6rqE+y0Tev721Z2+WL5lLpu+Vmd1+V9it9DR5pZbKNL4ubX0PMqcscT7x+lmt6Lp/iDS7rTdTtIdQ0+6jaKe1u4lliljb7yurcMteG/Br9iP4VfArxU/ifw7os8uuJJO9peX948zWUci7DFEv3doVmXc259rfM7V6V8RPjP4K+Ffhz+3vFnibTtF01l3wNLcAtce0SL80rf7Kbq+fv2bv+ChOh/tF/EW48G2vgrXNLvpXuJbO7jZbq3+yxpv826YbfIb7qbfnXc6Lv8Amry6cMTyOUPg6nTJ0uZfzHwV+zj4Nl/bO/a9lvPGQe8sr+4ude1iJbhx/o6/ct0Zvm8rc8UWzduWL7uzbX7O6PpFnoWm2un6faw2VlaRJBBa28axRRRqoVURRwqqvRa/F3wjqur/ALA/7X7pq1pfXWn6Pdy2s6JtR9R0uX7kqfNt+7slVN3302Oy/PX6+eB/i34M+JnhdPEXhvxNpur6OsYkmuIJ1HkfLuxKjfNEw/uPtZa9fNlOcqcofBy6HNheX3uf4j4g/wCCrXwL0WPw3pfxS03TRb64t/FpmrT26bRcwPE3lSyn+8rRpFvA3bZFX7qrW3+zN8R77x9/wTT+IlrqBlmm8N6HreiLNPJvaWJbJpYsf7CJOsS/7MQry3/gpf8AtW+GPifYaN8O/B2qW+vWFhef2lqeqWT77fzVRliiilV9kvyyuzfeT7nzbkda9w+DPwbv/gt/wTg8e2GrWk+na5rPhvWdZvrS4PzwPLZOkS7cfI3lRQ7k/hffTkpRwNONX4ubT0MvdlVlynmf/BHEZvvit/1z0r/26r9MD0z6V+YP/BIjWtO0S8+Kf2/ULaw8yPS9v2mZY93/AB9f3q/SH/hO/Dmf+Rg0r/wNi/8Aiq4c0hP61I6cJJeyifnj/wAFkv8AWfCL/uL/APtlX0l/wTjH/GGvw++uo/8Apwuq+Zf+CwOoW+pw/CG5tJ47i3f+1tksTb1b/jyr6D/4J5+LtF0b9j7wJDfazYWcsf8AaHmJcXSoy/8AEwuP7zV21YSeVU7fzf5mMLfWpHN/8FOfhBoHir4Aan42ltEi8SeGpbY219Ei+bLBJcJE9u7fxJ+93j+6y+jNu8n/AGBbBP2gf2Rfij8ItWlaRYJWFhLdnfFZeem+32L/ANMrqB5f95q3/wDgpB+1l4J1L4TXPw08La1p/ibWNblge/uNMuEnt7C3iuElw0qtt8x3iVdn93ezbfk3dr/wSx+FV34H+BV94l1O1ks7vxTffaoN5xvsolCRPs/h3OZ2/wBpXRu9EeanlvNV+Lm90UlGdf3T5I/4J6fGqH9nz4w+L9D8WyzaPpd9pdyb6GS3y0F1YLLL8/8AEuyL7Uu1fvOyLXz38TPFPif45+NfG/xFu9Pu7hZZ/tt9LEryxWETyrFbxO/8Kr+6iX/dr2z/AIKO/CBfhd+0jqWo2lsYtI8Uw/2zAVRtq3DNtuE3N95/NVpf+3ha+yf2Lf2StHX9kXUNN8T2aPc/Ee0+1XrbEd4LV0/0LZu3JvRW+0L8vyyyn+7XpyxFGhFY1fFP+mcip1KkvZfynzn8UP2ym8afsBaB4Ulvlfxle3q6Dqu93817Wz2S/aFbfu+dfsqs7/eZ5/kr6H/4JT/Ck+EvghqfjG5i23niy93R/P8A8uttvii+T+FvN+0f8B2V+Zk3wb8RW3xl/wCFYSwRp4n/ALaXQ/mD+V5rS+Uj7tn+q/i3f3fmr99PBfhWy8B+D9E8NaUGTTdHsYLC2EjbmEUSKibj/urXDmXs8NRVGj9v3jow6lUnzT+yfjZa/FPSvgt/wUB8V+Ntbtr650rSvF2tvPDYIrTPvluIvl3si/ef+9X2if8Agrh8IMceGvGmfX7DZ/8AyVXxno3hLwt48/4KGeJdB8bRwTeGbzxjra3i3Fy1qu1Zbpk/eoyMvzov8Vfdp/Yz/ZHxxpuh5/7Gy6/+Sq2xf1Xlpe2jL4ehFLn97lPY/wBnX9ozw7+0z4KvvE3hmw1Sw06zv30501WKKKUyrFFLuxHK427ZU71+bX7Lv/KTk/8AYyeIf/Se9r9LvgV8Pfhp8LfDl/oHwy+wQaS9yb+6trLU2vMSsipvZnkdlysaf981+ZP7Nt/baZ/wUukuruWO2t08SeIN0krbFX/R72uLApOGIUF9k1rX/d8x+xp618zf8FHOP2NfiCP+wf8A+nC1r3v/AITvw5n/AJGDSv8AwNi/+Kr50/4KE63p2sfsbfEL7BqFtf8AljTt/wBmmWTb/wATC3/u15GFhJYin/iR21pL2UjxX/gjx/yKfxJ/6/7L/wBFS1+ifvX5uf8ABI/XtN0bwt8R1v8AUbSwdr6z2/aJ1j3fJL/er9Bf+E88OZx/wkGlf+BsX/xVdeaQn9dqMyw0o+yib61m+I/+QBqf/XtL/wCgmrNrcxXsEc0EqywyLuV0bcrLVbxH/wAgDU/+vaX/ANBNeZH40dUvhPxF/Yi/aJ8P/sz/ABY1TxR4isdR1DT7rRZdNWHTEieVZWnt5d3zOny7Ymr1X9tn9u7wx+0n8N9M8J+GPDuqWgTUlv7m81lIkdNiuiLEqu/3/Nb59y7dm35t/wAvB/8ABPf4aeBPil8aNY0r4hWVpf6LFoE91HFeXLwJ563FuqvuR1/gd6+l/wBsr9nP9nL4d/AjX9X0Gz0vSPFMaRLpP2HV5ZZZZfNTeixNMVZdu7d8vypvavtav1eOMheEubQ8OMZ+y0l7p7r/AME9fg5f/CH9nSxg1C7trm91+8bXHjtZ1niiWRI0RUlRmV/3cSNuU43PXm//AAVH/aB/4QT4aWnw60m8Ka34pPmX3kynfBpyt8+drBl81l2c/K6JOtcX/wAEoviZd6Z8OvijY69qvk+FPDX2bU4hcfcs0kS4e4bf/c2wI23/AHm/javiH44/Gmb46fGzV/HGuQXN1plzeIINM8/ynisEb91bq3zbG2/eZP4ndv4q4aGBlPMKkqn2f6R01KsY0IxXUs+FJvGf7Lvjr4ZfEKfT5LZryCLXtPib5PtVmzvE8TPt+TzYt3975ZUb+Kv3N8B+M9L+IXhHR/Eei3H2vStVtIry2lIxlHXeN391ucbf4SK/G79p79sO3/aW8IaBok3gCw8OTaHPusb6yvGfyomTa9ui7FXY22L/AL9LX03/AMEpP2gPten6r8JtWucyWe7UtE3H/lkzf6Rb/wDAXbzFX/bl/uVeZUKuIofWJx96JGGqqM/Zr4T5g/4KLf8AJ5XxD/7h3/pBa13/AOyv+1v4p/Y58a3fw1+Jem38fhSC6aO4sbhd1xosrfN5sH9+J925lX5W3ebF95vN4D/goyP+MyviL/3Dv/SC1r9K/wBrT9jrw3+094bikLponjTT4iuna2i53r/z7z/34t3P95G+ZfvOr7V61KGGw9KvH3ZRIpwlKpOVPeJ8hf8ABVzxXpHjj/hUWuaDfw6ppV9Z38ttd2rb0lXdb1778Yh/xqx00/8AUlaF/wCg2tflx8U/AXjL4Ta/J4K8YW15YXGnySzW9pMztB8+xWuIB91lfyl+ZfvbP9mv1H+MZx/wSv00f9SXoP8A7aVGIpQoxw0Kcub3v1RVN8znKR8Jfsy/tSS/s2fCv4npobL/AMJn4gbToNJd4fNS3VftXm3Dfw/JvXarfxOvyOqtXtP/AATt/ZOn+K/iU/GHxzJcXel2d80ulRXRZ31S8VvnupWb76q3/fcoO77jK3lX7I/7Kdn+1F8O/ihb291/Zvi7RG06XRrtmbyd7Ldb4pV/uvtX5vvKyK395X6v9kH9rrxF+yX42uPhv8Rre8h8HreNBcW9wjPcaHPuO6VF/iib+KJf+uqfNvWXsxiUvbRw38T7X/AMaP2fafCfrxqAxYzj/pm38q/ED9iD9ofw7+zR8WdV8VeJrLVL+wutFl01YdJiill81ri3l3/vZU+XbE1ftdbataa3oSajZXEN7Y3UAuILiCRXimiZdyurL95WXvX4vfsF/DX4d/FX4w6po3xLgs7jQItDlu4Fu9Qlsk89bi3VfnSVP4Hf5a8PLFH6vX9qtDtxN/aQ5T7YH/BXH4Q9/DXjT/wBs/8A5Kr6EuPiVp3xc/Zr1fxdpNvdWumax4evLmCO+VFlVPJf7+12Uf8AfVeOD9jT9kXvpmifh4suv/kqvY7vSvCfhv8AZ58R6B4IltG8PaXoV5aW8dpdm6SIeQ7bd5dmP3v4mrkqrD3j7GMl6m0Of7cj80/+CW/inRvCf7QXiC81zVbDRrV/C88SXGoXKW6M/wBqtfl3OfvfK3/fNfc37YPx3+Fb/s5+PNMufFfhzWrvUNHntbHTre9gupZbl12wMsSt/BK0T7v4Nu7+Gvy9/ZR/Zvm/ai+I1/4Tg1yPw49npUuqfa3tftG7bLFFs2b1/wCev/jtUf2kf2cte/Zo+I7eG9cP26xliW407Vol8qK/i/i2ff2MrblZP4f911ZvoquDoV8Xd1Pe7HnQqyjSty+6fW//AAR9sdQfxB8T7lX8vSvs1hHKv9+bdNs/75XzP++6K+zP2Q/Dfw/0L4DeGj8MoifDV/D9t8+8ZTczzt8sr3BTgzBkKNj5V2bU+VRRXzeMr+1rylax6VClamkfkh+zL/yDPjT/ANk9v/8A0qta8Rr279mX/kGfGn/snt//AOlVrXiNfpVD+LVPm6vwRPov/gnvcR2n7YXw7kmZUTzb1Pm/vNYXCr/49X7a6vDLcaXeRQP5c8kLrG391tvFfzy/DPxnL8OviH4Y8VxwfbJNE1O11L7P5vleb5Uqvs3fw7tu2v6FNA1yw8S6Fp+rabcx3mn38Edza3EfKSxOu5GX6qa+Mz+nKGJjVPXy+XuSifzi0ZxXuv7Z/wAD7n4E/tA+JdKFt5GhapO+qaO6xbIvssrb/KX5m/1Tb4v+2W7Z8614WRivuMLVjXoQqQPHqw5Jcsj9tf8AgnB/yZn4B+uo/wDpyuq774qftQ/DL4Ja/Bo3jTxPFoWpz263sVvJbTylomd1Dfu0b+JH/wC+a4D/AIJy8/sZfD366j/6cLqvjj/gqT4d1Hxh+1P4J0TSLZr3VdU0Czs7S3UhfNle9ulRfm/2q/NFQjicdOFR296R9FKpKlQjKB9tD/goL8Af+ih23/gDdf8AxqtTwX+2N8F/iDrlvoug/EDTJtVumWOC2uFltfPd32oiCVUDuzNwq/M1flB+1D+x74s/Ze1Gym1Jl1zwzfqqWuuWsTJF5+357eVP4W+9t/vL8y/cdE8DOO1e7SyTC4ilz0qpxSx1SEuWUT+h74g/Dnw98UPCl/4b8T6ZBq2kXsRSS3mTp1+df7rr/Cy/MvFfhF8e/hDffAf4t+I/Bd7IbkadP/o13s/4+IGXdFL/AL21l3f3W3LX7L/sXfEPVfij+zD4B17XJXuNUltJLWe5kd3efyJpIPNd3+ZndYgzN/eY18Cf8Fb0iX9onw2yP++bwvBvTb/D9qutv/s9cWS1qlDGSw8tjfGRjKj7Q+IaKKK/Rj51HqHir/k2z4c/9jH4g/8ASfS6/bL9l7/k274Vf9ippP8A6RxV+Jvir/k2z4c/9jH4g/8ASfS6/bL9l7/k274Vf9ippP8A6RxV+eZx/Ch/il+Z7mA+OR6jRRRXyp7pEQCMV8J/tDf8Eu/DXxE1K98RfD/U18F6xcebNLpksXm6fPI/zfLt+aD5ufl3KP4UWvu/qKM7a2w9ephpc0JGNSnGovePya8O/wDBIr4j3WrW8ev+MPC+n6X83mT6ebm8lT5fl2xPFErf99LX3v8As5/sueC/2ZfDj2XhuKW51S6Vf7R1m7+e5uz9f4Ez91F/Hc2Wr2s8jNLnArevj8RiY8k5e6RToU6fvI8H/aV/ZL8E/tPaTGddgm07xDZxNFYa7ZcT2/O7Y6/dli3fwP8A3n2MhbdXwlr/APwSJ+Jdtq1xFoni7wpqWlq2YJ9Qe6tZm/3olilVf++mr9ZwcjignA5p0MdiMNHlpyFUw8Kr5mfDf7Nf/BNDwz8ItesfE3jXU18Z6/bbZbeyEHladaXHynftb5p2Vh8jNtXvs3Bdv1j8WvBj/EP4XeL/AAtBOlpNrmkXmmR3DruWJp4Xi3f+P12O2l6da56uJq1p+1qSLjRjCPLE/LT/AIc+eKv+ih6R/wCAEv8A8XR/w588Vf8ARQ9I/wDACX/4uv1M/Gj8a7/7UxT+0YfVKZ8D/En/AIJw6/45+C/wq8EweMtOtLjwZHqKT3T2cjJc/aZ0lXYu75duyvLP+HPvin/oo2k/+C6X/wCLr9S/xpMVNPMsTRhyQkVLDU5HwP8ACT/glH4P8G+IodT8Z+JbrxxFA6vFpsVkbC3Zvmz5v713kX7nCsmdnzbl+WvumysLfS7OG2toI4LaFFjjiiXaqKv3VVav0VxVsTWxPvVJG0KMafwngX7T37Kuh/tNjwUNYlFsvh/WFvJ9xlP2qyb/AI+LT5XTZ5uyL9795Nny172i7BTxigkVi5ylFRZfLHm5jwPVP2WdDu/2sNK+NSymG+tdKktJbONNvnXRXykuHb+L9wzxbf8AYir3ojg15rfftF/CrTL+5s734meD7K7t5Wimgn161R4nXhldWfKsPSkP7Tvwf/6Kt4I/8KOz/wDjtaSc58vN0JjyxPib4of8EsPEvxA+Jni7xRB490u0t9b1e81KO3exld4lnleXZ9//AGq5r/hz74p/6KJpX/gul/8Ai6+/P+Gnfg//ANFV8Ef+FHZ//HaP+Gnfg/8A9FV8Ef8AhR2f/wAdr0oZli4R5E9Dl9hQPHf2Jv2N9V/ZWuvF8+p+IrTXP7cjtVX7LA0XleV5v97/AK614J8Qf+CUviXxp4+8S+IY/HumWsWrandX6wvYSuyLLK77Pv8A+3X25/w098H/APoqvgj/AMKKz/8AjtOP7TnwgA/5Kr4J/wDCis//AI7WUcbiYTlUi/eZXsKU48h8Bf8ADnzxT/0UXSf/AAXS/wDxdepeAv8Agm9r/g74GfFLwHL4z065uvGDaY8F6lnJst/s0/mvvTf826vqr/hpz4Qf9FV8E/8AhRWf/wAdo/4ae+EH/RVfBP8A4UVn/wDHac8diqvxsI4elA+BP+HPniv/AKKLpP8A4AS//F0f8OfPFX/RRNH/APACX/4uvvz/AIaf+D//AEVXwT/4Udn/APHaT/hp74P/APRVfBP/AIUdn/8AHa2/tTGPd/gR9WoG38JPBkvw4+F3hHwrPcrd3GiaRa6bJcRJtWVooki3f+OV02p2f9o6fdWwbYZYni3f7y15/wD8NO/B8/8ANVfBP/hR2f8A8doH7TvwfH/NVvBP/hR2f/x2vK97m5jqvG1j4E/4c9eKv+ii6T/4Lpf/AIup9N/4I9a5NPt1D4l2FtBt+/b6O8rf98tKtfen/DTfwg/6Kp4J/wDCis//AI7Sf8NN/CH/AKKr4J/8KKz/APjter/amM/mOX6tQPFPE/7D50j9mOb4QfDrxGdCg1O/W81nVdVVriW/+7uU7Nuzd5UC/L/BFt+bezVo/sffsVaZ+zhoGux63cWPirWtVuFZr37FhIoFX5IlV93O5pWZv4t6/wB0V62P2nfhB/0VTwT/AOFFZ/8Ax2ux8MeJ9I8a6Nb6xoep2es6VcbhDfadcrPbzbWKNtdflbDKy/8AAa4Xia/JKLfxG8aVPmuhh8C+Hgf+QDpn/gHF/wDE18QD/gm/r/gz9oI/Eb4e+M9O8PWdrq/9q2OkyWUirEjNultv3TriL5ni2r/yybZX3/8ASkrOniatPmipfEW6MZHwB+0x/wAE3fEHx2+NviTxzZeMtO0q21c22yzuLORnj8q2iizvV/8AplX34o2rzSn5cCndc0qtapWjCMn8IQpxhKUonin7Sv7M3hf9prwPJo2vQGz1O23TaXrUMQa4sZf/AGeNuN8R++MfdZUZc/xt+zrqHi39ki1+D8Wr29tqEOh6dpB1N4maItbeTufZ6N5R/wC+q963UtTGrOPKub4R+zifKv7Ev7IOqfsqJ4wGp6/aa9/bps/L+ywNF5Xkeb/e/wCuv/jtRfthfsNaP+0zLp2taZqMfhnxfa7IZb97cyxXkH9yVFZfmX+F/wDgP90p9X4GMUYAHWt/rdVVvbc3vEexjycn2T5o/ZL/AGffHv7Pfhm88KeIPGFh4o8L7S2nRLbyRzWDsfnRWbP7tvvbezZ/vV8mf8OfPFWf+SiaT/4AS/8AxdfqR1xRu3EitKWNr0ZSlCXxGcqFOcYxkflv/wAOfPFP/RRtJ/8ABdL/APF19W/sy/snal8BvgL4w+Ht3r1rqt3rlzeTx30MDIkXn2sUHzL/ANst3419PDkcU3OKK2Or142qMdPDwp6xPi39jX9g7Wf2YPilqfinUPFdhr0F1o8umra2tq8TKzzQSbssx/55H/vqvYf2qf2Z9E/ab+HMmhXzR2Gs2rfaNI1cpl7SXH/otvusv+633kTHuePSmqMCsZYmrKp7bm941jRio8p8e/sjfsp/EP8AZan1yzXxdpPinw9qarIdJlint1gul2j7QjfMMunyt8uW2p83y4JX2HjFFKWIlN80lqSqMVofg7+zL/yDPjT/ANk9v/8A0qta8Rr279mX/kGfGn/snt//AOlVrXiNfq1D+LVPlanwxDFfqB/wTJ/aqj1rQofhB4muNuq6ajzaFcyy83Nr99rfDfxRfMy/9Muy+V835gZ4q1pupXej39vfWNzNYXtrKs8FxbyNFLFKrbkdGX7rK1ZZhgY46lyPcrDVpUpcx+7n7Sv7Nnhf9pnwJJomvwmz1K2LS6VrcCbrixl9V/vI2F3x/wAWP4WVHX8p/i3+wL8ZfhXqdwsXhW58XaSZNkGp+HImuvN/7d1/ep/wJdv+233q+mP2Z/8AgqRBbafb+HvjHFMZUbZD4n06DfuT/p6gX5t3+1Erbv7n8Tfc3gL43/D/AOKapJ4U8Z6LrxMSTG2s72N54lflfMi3b425+6yq35V8NTrY7KpOko+6e5KNHF+8ebfsEeFtY8Ifso+CNJ1/Sr7RNVt/t3nWGoW729xHuv7h03o3zL8rK3/Aq9Jufgz4ZvfjBB8S7uzN54qtdMXSbK5uPnSzi3ys7RL/AAyP5rKz/wB35V27n37Hiv4leFPAlos/iXxNo+gwM21ZdSvordD/AN9tXyb8cv8Agp/8PfANpe6f4HZ/HfiJN8KSQq0WnQSq23c8rfNKn8f7rcrKPvrndXmxp18TVk6cdZHTKVOlHlkejft0/FHR/BvwF1bw/c6fDr/iPxep0XQ9AeISzXdzKVUSrFsfd5O9Zfu/f8pflZ1r4T+Hv/BK/wCLXiLV7eLxPJpPhLSFdfPuHu1urjb/ANMoovlZv99lrvPgX+0B8H5viEnxj+MvxGPiD4mzx7bTTLfR7z7F4fi+bZbxfuvnZVb733dzv95281/qVP8AgpH+z7MdjeOJof8AafRb/wD9lhr1YfXMDF0qMX56HJL2FaXNOR7d4Z8O6B8G/hxp2kWckGleG/D2npELi7kWNYoIk+eWV/lXopdnOP4mr8UP2xPjqv7Qvx613xLaSs+hW6rpujq67P8ARYv4vuK/zs8su1/mXzdv8NftP4p8M+D/AI+fDefStS+x+JvB2txIxa1ut0NwiuHRklibsyq25W/hr8Zf2u/2X779l74lLpX2mTVPDGpq91o+oyp87Rbvnil/h82L5N2z7yurfJu2JtkUqX1l+1+MMbzez9z4TwWiiiv0U+bPUPFX/Jtnw5/7GPxB/wCk+l1+2X7L3/Jt3wq/7FTSf/SOKvxN8Vf8m2fDn/sY/EH/AKT6XX7Zfsvf8m3fCr/sVNJ/9I4q/PM4/hQ/xS/M93AfHI9Rooor5U90KKKKACiiigAooooAaOlN+9T+MV89/tDftZ+G/wBnnxf4C0PWHQyeJNR8q8bzVX7BZ/c+1P8AN8q+ayf7yrLj5lpwhKpLlgRKUYq8j6Cp9RhhXjOu/tKeH/C/7Q+mfCbXD/Zmo6vpEOpaVeuR5V1K01xE9q39x8RKyf38svytsVxRlLYJSjE9qpvFGeDXiHxr/aZ0D4PeMfA/hF9l94s8V6zZ6fa6crgtDbS3CxPdS4+6n3wv95h/svtUYSk7RCUox3PbjxTQQR6V8lft1/tc+I/2WD4I/wCEf0bTNXGvfbRONR8z915Hkbdmxl/56t+VeNj9uT9qKROP2eL/AP8ACe1SumOEqzpqp9lmMq8Yy5D9G6cfrXzv4L+OXje+/ZU8R/Ejxd4T/wCEZ8W6VpmqX/8AYl1bT265tkleLcsvzhWCKfxr5P8ACX/BRj4++PNNl1Hwz8Go/EmnxS+Q93pOl391Csu1X27kZvm2uny/7VOGFqTvy9ByrxR+g83wn8FXU8s0/hDQp7iRt0ksumQM7t/ePy0f8Ki8Cf8AQleHv/BVB/8AEV80/s0/t6f8Lf8AiYfht438GXngLxxsZoLeXzXSeRE8yVHR0VoG2fMqtuX5W+fdtVtH9oP9rjxH8I/2nvhv8M9P0jTLvSvFL6ctzd3XmfaIfPvXgbZtbb91M80pUKsZcj3H7SnbmPoU/CDwIf8AmSvDv/gqg/8AiaT/AIU/4E/6Erw9/wCCqD/4msj4z/Gfwz8A/Al/4t8V3xtNOtxsiiiG+e7mOdsECZy0jY6dPlZm2qrMPhi6/wCChv7QHxAk/tf4a/BNrvww/wC5imfR7/VN0q/e/fwPEn/Adny/3qKdCrUjzr4RTqU4/Eff5+EHgX/oSvDv/gqg/wDiaP8AhUXgMf8AMleHv/BVB/8AEV8+fsqft16J+0Jr1x4Q1vSG8FeOrcsV0q5uC63mxf3vksyo3mJ82+Fl3Kvzbm2vt+nNY1iy8O6TfarqVzFY6fZQPcXVzO21Io0Us7s391VzWU6dWlPkkVGUZR5omOPhF4E/6Erw9/4KoP8A4ikPwi8Cf9CV4e/8FUH/AMRXm37Ln7TmiftPeEdV1fTYWsb3TdUntZ7CUqJkg8xntZWQM334tv8AwNZdv3a9H+KfjU/Dn4Z+LPFaWq30mhaVd6l9lMmzzfKiaTbu/h3baUozhP2ctw5oyjzC/wDCoPAn/QleHf8AwVQf/E0p+EXgT/oS/D3/AIKoP/iK5n4DftAeEf2h/BMXiDwxe+Yo+S70+X5Lizl6lJV/9m+61eO/t1ftd+I/2WH8E/8ACP6NpurjXRfeeNR8z915H2fbs2MvXzW/KtIUasp+y+0RKdOMeY+iP+FQeBf+hK8Pf+CqD/4ml/4U/wCBP+hK8O/+CqD/AOIrrUOUBr50/bY/aO1r9mL4W6T4o0LTrDVbu81qLTHh1DdsVWgnl3/Ky/N+6X86zipTnyxLfLGPNI9e/wCFReBP+hK8Pf8Agqg/+IpP+FQeBR/zJXh3/wAFUH/xNQ/CLxdcfED4VeDPFF5HHbXWtaLZalLFAcojywJKyr/s/NXhHxU/av8AEHgL9sLwR8JbTSNOutF16CCa4vrjzBcReY8q/J8+3/ll/dqoU51JSjHoOUoxjzHvv/CofAn/AEJfh7/wVQf/ABFbmk6NY6Fp8Vhp9lb6fZRH93b2sSxRLzu+VF6V5V+0p+0r4V/Zl8DrrniB2vb66Z4tM0aBl+0Xso64/uouV3SHhdw+8zIrfGw/b+/aU8WL/bfhX4JCXwpdfvbOYaHqN7+6/wCviJ1V/wCL5lRa0hhqtWPMtjOVanB8p+mBPy5pVwR0xXzD+yX+274Z/age70ldOl8NeLbOJrmXR5ZfPSWHft82KXau77yblZVZd/8AEPmrtPEX7Svhzwd+0Rp/wo1wnTdQ1jSINS0q+mfEN1O9xcRG1b+4/wC6Qp/f3bfvbFbKdCcJcklqaRqRlHmPbMc5pDigtxXh/wAbv2mdB+D3jHwL4PYx3vizxXrVlYW2mpJlobWW4SOW6l/up95V/vP/ALr7c4xlN2iVKUY7nt9IBzXyT+3L+1v4n/Zhu/BFv4a0XTtbPiD7YJI75ZNyPF5GwLsdfvea35V49/w3J+1Fj/k3i/x/2L2qV1RwlXkVR9TKVeMZcp+jFFeF/Cz45a1P+zrL8SPihoU3gy+sYLy61HTHtZYHiiid9m2KX5izIq7f724etfI9z/wUU+OXxDu59S+FXwXl1PwtFK1ulzNpN9qjvKvXdLbsiIxVk+T5tv8AealHC1J3t0HKtGJ+luFHejjtivlX9kT9sLVf2hda13wt4g8A6n4U8TeHoFfU5SG+yrLu2eU6vteCVm3lYm3fLE/zfLX1UPu1jUpypS5ZGkZKUeaI6iiioLCiiigAooooA/Br9mX/AJBnxp/7J7f/APpVa14jXt37Mv8AyDPjT/2T2/8A/Sq1rxGv12h/FqnxtX4IhRRRXoHMFFFFTKMTVH6lfsQ/sd/CH4k/s8eCPGvibwbHrHiS4kuXuLq4v7nZL5V7Miboll8pvkRVKlfmx8wNfPn/AAVB8HeHvAXxy8MaX4Z0PTdA0xfDMUv2HSrOK3i3tdXXzbFTbX3d/wAE4/8Akzb4fHtnUf8A04XVeOft7fsZ/ET9or4t6N4i8Ix6W+nWuixWEn2688pvNWed/u7f7sq1+b4bExpZjJ1Ze77x9BUpueH92J+VtFfYH/DrP44f88NA/wDBn/8AYVPY/wDBKz413l0sU8vhuwjf71xLqLsq/wDfMTNX2f8AaeC/5+Hj/Va/8p75/wAEh/HOr6x4P8feFru4M2kaJc2d3Yo5Zmie5+0eansv7hW2/wB53b+Ou3/4Kp+DF8Q/s4W+tpHD5+g6xbztK6/vPKlV4GRG/wBppYm/4BXtP7MP7Nej/syfDyPw1pVw2p388xutR1aWLynupfuj5fm2oq/dTd6/3mr5f/4K1/FmysfBHhf4c21wzatf3i6zeRwvt2WsSuiK6/7crbl/693r4ilUWIzP2lD+Y9qUfZYXlmfl5RRRX6cfMnqHir/k2z4c/wDYx+IP/SfS6/bL9l7/AJNu+FX/AGKmk/8ApHFX4m+Kv+TbPhz/ANjH4g/9J9Lr9sv2Xv8Ak274Vf8AYqaT/wCkcVfnmcfwof4pfme7gPjkeo0UUV8qe6FFFFABRRRQAUh6UtIelAGRqurWehadc6jqFxFZ2drE881xO+xI41XczMx+6oxX5Da34N8W/wDBQPxz8YPiVpqXcemeH7DGgWMitvl2vuitVVd/zvAs7MqP/rZU/hevtD/got4n8dH4QxeC/APhbxDr994mkaG/utE0ye6W1s0+Z1ZovuNK+xMOGVo/Oryz4e/8E1PiL4O8NQWmlftB614O8/bdXemaHbTrbrdMq7/mS6i8z7u3dtXcqrxXr4OVPDwdVy5ZM8/Ec85cvLoev/8ABOz4/D4z/AyHS9QmEnibwn5WmXmXy8sGz/R5v+BIjJ/tNE7fxV8nf8FP9H1TxB+134G0rQllfWdQ0GwtbFIpfKdrh7+6WLa38Hz7fmrofht8BfiN+wx+1R4cm0uw134geCNbtktdX1XSNFndIopH2t5qRebtaJ0SX/aX5V+89dn+198NPF3in9vr4L+INI8K65q2hWI0X7Zqljp8strbbNVlZ/MlVdqbU+Zt/wDDXRTdOhi3Vpy91pmbUqlLkl8Qz4Uf8FOtP8P/AAW1q2+I1hd/8LM8Or9jisVgaL+2JfnVWb/ngysuJd/+8m5m8pPkTwheeNvEP7W3wm8YePY7pNY8W+I9J1yCa4O0y2rX6RROq/wxfumVF/uqm35XVq/Rj4t/8E+fAvxU+OmjfEK6klsbfzfP1zRYog0OrSp/qm3f8st3/LXht6qPuMzu3kX7Wvwu8W65+3n8GNb0XwfrGpeHdO/sRbnUtN0yWW0thFqkrv5sqrtTYm1v9la2pYjDQ5vZR+KLvfp6GcqdR/F9kyf+Cw8hW4+EL/8AYW/9sq7uL9vP40qAP+GVfF//AHzef/IVYf8AwVW+HXi/4hT/AAubwv4T1rxP9iGp/aTo+ny3Rg3mz2B/LRtu7Y//AHxXRr+3t8X1A/4xO8a/99Xn/wAgVzqUZYWnaKlv1K5eWs9T3H4ueIL/AMVfsb+M9a1LSp9B1HUvA17eXOk3G7zrKWSwdmhbcqtuRm2/dX7vaviT/gn5+1/8Nf2f/g/rXh3xlqd3Z6lda9LfxR29lLP+6e3t0+8o/vRPX2Jq3jHxP8bf2OvHepah4B1bwl4j1Tw7rFpH4YnSSW83eRKkSqjRIzM/y7V2fxV4F+wV+ypomu/ALxVp/wAUfhlHba3dazdW8U/iHRPs+oR2zWtuqtFLKnmou4y7WX7rbv4gawoypwozjV7o1qRlOcZRPOdC8bRftof8FBvB3izwRo19pfh/w1FazXl/dIqvLFA0svmyqv3d7usCrvb5dr/3lXqP22+P+CiHwF/666J/6d5a1/2TvDfxQ/ZC+POr/CrV/Der+JfhnrF55tp4m0/SbiW3t5XRFineVFZUVlVIpUf7jKrbtiu7Wv2vPhp4t8S/t3fBTXNI8La3qmh6fJo5vNSsrCWW1tgmqSM/mSqu1NiEN838NbSnTVe0fhUdPuMuWXJ/e5jmv+CkE8vjv9pr4L/DrWDJY+Erp4Glu0bZ811e+RN8zfL8kUS/7vm1+iejaNY+H9JsdN061hsdPs4EgtrWBdkcUaLtVFX+FVXHFfNn7ef7KV5+0r4AsJNAkjTxloEktxp6XLbI7mJ9nnW+7ojNsRkZv4k25VXZl8H8L/t5/G74PabaeFPiL8FdY8Q+IoZfsUGoRvLZvebfl/54SpO25X/exNtb+7/E2PLLE0IQpv4ehtf2c5Sl1PuaH4SeDbf4hT+NU8L6V/wlkyIr621krXWFTYNshHy/I207Tll+XotfKH/BTf42Xnh7wZpXwn8NNLc+J/GEiefbWm5phZ+YEWNVT5t1xL8nRtypKv8AEKT9laX9pTx58UtW+JXxJvL/AMH+CHgbd4Tms3/0rarIiQWbbpbfa371n+/L8i/Orbl8Z0D9mf4qftmfHTxl8QvFF54h+ES2VzFJos2r6PcLcxKrv9nWBGaLZ5SorMyN99938bUUKcadXmrT0iFSUpQ5Yx+IqfDXTtX/AOCdv7VfhvRdfvi3g7xfpNnb6heee32RJWVUlm3v5SfuLrd87/MtvL/eev0L/alOf2avip/2K+qf+kktfD/x3/4Jw/Ea/wDBGp63efGTWvibquh2k91Y6PqdjcTPL91nigZrqVldlT5URfmZUX/ar2j4Z+IvHnxH/YL8aaJ4q8J+JLDx1YeGtR0UWup6ZPFc6l/orrbyxK/zysylVb+JpVf+8udsTOlW9nWjO8vtEUuaPNT5T4a+CHgP4q/CD4Xaf+0P8Nb5ru0s7me31rSUV222sTfO8sX/AC1g/vfxxff/AINydD+3d+0r4Z/ab8C/CHXdDb7LqdoNTh1XR5m3TWUrfYvlP9+J9j7Jf4tv8LK6r9yf8E5fB2veCf2bbPS/EmialoGpLqV1I1nqdm9rKEZ8q2x0Vq+dv2z/APgnBcQXGpeOfhJp4ktX/f33hK1i+dW/ieyX+7/07/8AfH8Cr208XRnir1N47P8AzIlRqRpaH6YxjCIPaviD/grn/wAm6eHP+xqtv/SO9r7hj/1Yr4y/4Kg+CfEfxB+AugWHhfw/qniW9i8SQXD2uk2cl1Msf2W6TftRG+Xc6fN/tV4GFko14yZ214/umeW/CD9un4keDvhZ4P0Kx/Zx8Ua7Y6ZotlZ2+p289x5V5HFbqiyptsn+Vtu77zferzNvi7rnxs/4KBfCfX/EPgbUPh/fRNa2i6VqTu0zorXD+b88UXytv/u/wV+j/wCzrpd3ovwB+G+nahZTaff2vhvTLe4tbqJo5beVLWJXR0b7jKwI2+1fKfx7+HPirVv+CjHws8S6f4Y1nUPDlla2a3OsQafK9rbsstwW3yqu1eHT/vqvWoV6HPU5Ycvuvqcc6VTlj7xxH7UWkWXxW/4KSfDvwh4tZbfwxb2lqqQ3Lfurr/Wzhfm+X97L+4/2vu1+lEECRQqkaqqKu1VHQV8aft7fsleJfjFdeHfiB8OZPL8f+HdsSQrc/Z5Z4llMsTRSs2xJIZWZv4d29sv8qLXl+lf8FDvjZ4e0S08Na98C9UvvH8tqyQXD211a/aJP4Jfsf2fe/wDDuVHXd/Dt/h5Z05YqlT9k/h3RrFxoylzGF+0Dpdl8IP8Agpv8MtS8KwR6fc+IrjTp9RSJF2tLeXUtncMF/hZovmb/AGmZurVz3/BUDRdT8Q/tceBtK0SOSXWr7QLC1sUil8p2ne/uli2v/D8+2vW/2SP2aviJ48+Od18ffjPbtpesM/maXocsCxSs/lCJZHi/5ZRxIdqI/wC93Lubbt/exftd/DHxh4k/b6+DPiDSPCuuatoNj/Y32zUrHT5ZbS226pKz+ZKq7U2o29t38NdUK8aVeN3zcsTndOTg7faZB8J/+Cndj4f+C2sW/wAR7G8PxM8PL9ji09YXX+2JeVRn+X9wylf3u7/eTczeUvyP4V1Dxr4o/a6+E/jPx9DPDqvi3xDpOt2zT/L5tq1+kUTIn8MX7plT/ZVG+6yNX6M/FT/gnz4D+Knxy0j4g3Mj2Nv5nn63okMQ+z6tKv3X6/ut/SX73mr/AHG3O3kH7XHwu8W6/wDt6fBjXtF8J61qfh7T/wCxPtWp2GmSy2lr5eqyu++VF2ptTYzbvurVUsTh4Sn7ONuZP5eg5U6r+L7Jmf8ABXG6ltvEPwWnjha4lil1JkiT+Nt9l8tdtF+3n8aVAH/DKvi/8rz/AOQqyf8AgqF4D8Y+L9a+E194X8I614sGly30t0mj6dLdeV89qyb/AC0bbv2N/wB8VvD9vb4vqMf8MneNf++rz/5ArPmjLC0koqW/UduWrK7PfvHfgJ/2m/2bZNB8Q2U3ha88T6NbXEtjPvL6bebUnRHX5GbypVTcvy7th+7Xw14C8Q/tXfsXaZH4Li+HX/CaeF7SeVrN7Swlv4ki812dopbZt6K7Oz/v13/N91a+3fDnxI+IfxN/Z6vPEuleB28G+PbuG5Sx8PeIppY/IlV3RHlZoFfoPNVdi7vkXcobcPkzT/26vj58FbOXTPit8GL7XL23kW0i1eFJdOSd1+8WlWKWCXd8vzRbUrnwrqe9Cyl5G9bl92R7J+yt/wAFAfD37RPi1vCd/oE3g/xc6ySQWzXK3EF4sahnVH2o3mY3vs2fdTO6vr6vzX/Zl+HXxN+Nv7Z8nx38U+CrnwJoNukssVvfQPC8m6y+yxRJ5m15Pkfe0uza2xvufItfpRXHi4xjP3DWhKUo+8PooorlOoKKKKACiiigD8Gv2Zf+QZ8af+ye3/8A6VWteI17d+zL/wAgz40/9k9v/wD0qta8Rr9cofxap8dV+CIUUUV6JzBRRRQB+on7Ff7aPwc+Ef7NnhDwl4s8Y/2Vr1h9t+1Wn9mXkvlbryeVPniidfuOv8Ve6H/go3+zuPu/EDB/7Auo/wDyPX4j0V8tU4fw9SrKbnL3j1Y5hUhHlsftx/w8g/Z4/wCigH/wS6j/API9H/DyD9nj/ooB/wDBLqP/AMj1+I9FZf6u4f8AnkX/AGjU7H6gfGf/AIKx+HtJsrrT/hloN1rmp72iXV9cj8myT+5IkSt5su75vlbytv8A47X5ueNfGet/ETxVqfiTxJqU2r67qMv2i5vZ/vu//sqqvyqq/Kqqqr8tYVFevg8toYHWEdTkrYmrV+IKKKK9c4j1DxV/ybZ8Of8AsY/EH/pPpdftl+y9/wAm3fCr/sVNJ/8ASOKvxN8Vf8m2fDn/ALGPxB/6T6XX7Zfsvf8AJt3wq/7FTSf/AEjir88zj+FD/FL8z3cB/EZ6jRRRXyp7oUUUUAFFFFABRRRQAmBRilooATApNop1FACUYpaKAE2j0o2j0paKACiiigBMCjApaKACmbE9BT6KACk20tFACUYFLRQAUUUUAFJgUtFABSbR6UtFABTNiegp9FACUYFLRQAUlLRQAm0elG0elLRQAU3YnoKdRQAm0UtFFABRRRQAUUUUAFFFFAH8+3wQ+KumfCrVvEkus+G28UaXruhT6Hc2MWofYn2SyxS7/N2t/wA8v7v8VdD/AMLM+CP/AERHUv8AwtZf/kWvFKK/X6mEpyqXZ8ZGrK1j2z/hZ3wQ/wCiH6p/4W0v/wAi0f8ACzvgh/0Q/VP/AAtpf/kWvE6KPqtPvL/wJj9rI9s/4Wd8EP8Aoh+qf+FtL/8AItH/AAs74If9EP1T/wALaX/5FrxOij6rT7y/8CYe1ke2f8LO+CH/AEQ/VP8Awtpf/kWj/hZ3wQ/6Ifqn/hbS/wDyLXidFH1Wn3l/4Ew9rI9s/wCFnfBD/oh+qf8AhbS//ItH/Czvgh/0Q/VP/C2l/wDkWvE6KPqtPvL/AMCYe1ke2f8ACzvgh/0Q/VP/AAtpf/kWj/hZ3wQ/6Ifqn/hbS/8AyLXidFH1Wn3l/wCBMPayPbP+FnfBD/oh+qf+FtL/APItH/Czvgh/0Q/VP/C2l/8AkWvE6KPqlPvL/wACY/ayPTvir8UPDHjLwp4a8P8AhPwbP4P0vR7u+vGjuNYbUmnluVtVf52iTbt+yp/31X7a/sw8fs3fCn/sVNJ/9I4q/n8r+gD9mT/k2z4Uf9ippP8A6RxV8jn1GNCnSjDzPWwD56jbPU6KQdKWvjj2wooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD//Z';

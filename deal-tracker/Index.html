@@ -61,6 +61,8 @@
   .need label, label.need { color: #b45309; }
   .need input, .need select, .need textarea { border-color: #f5a524; background: #fffbeb; }
   .mlsrow { display: flex; gap: 8px; } .mlsrow input { flex: 1; min-width: 0; } .mlsrow .btn { white-space: nowrap; padding: 9px 12px; }
+  .offer-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px; border: 1px dashed #93c5fd; border-radius: 10px; background: #eff6ff; }
+  .offer-actions .muted { font-size: 13px; flex: 1; min-width: 200px; }
   .help { display: block; font-size: 12px; color: var(--muted); margin-top: 3px; }
   .sky { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 999px; background: #f3f4f6; color: #374151; white-space: nowrap; }
   .sky.ok { background: #d1fae5; color: #065f46; } .sky.wait { background: #fef3c7; color: #92400e; } .sky.err { background: #fee2e2; color: #991b1b; }
@@ -401,6 +403,7 @@
     fillAgentPicker(deal);
     $('edMeta').innerHTML = deal.deal_id
       ? esc(deal.deal_id + ' · ' + (deal.agent_name || deal.agent_email) + ' · last updated ' + (deal.updated_at || '').replace('T', ' ')) + ' &nbsp;' + skyChip(deal.skyslope_status) +
+        (deal.offer_status ? ' <span class="sky ' + (/filled/i.test(deal.offer_status) ? 'ok' : 'wait') + '">Offer: ' + esc(deal.offer_status) + '</span>' : '') +
         (deal.skyslope_file ? ' <a href="' + esc(deal.skyslope_file) + '" target="_blank" rel="noopener">Open in SkySlope</a>' : '')
       : 'Fields marked * are required. Fill in whatever else you have now and add the rest as the deal moves along.';
     $('saveBtn').textContent = deal.deal_id ? 'Save changes' : 'Submit deal';
@@ -414,8 +417,15 @@
       sec.fields.push(f);
     });
     $('detailsPane').innerHTML = sections.map(function (s) {
-      return '<fieldset><legend>' + esc(s.name) + '</legend><div class="grid">' + s.fields.map(function (f) { return fieldHtml(f, side, deal[f.key], !deal.deal_id); }).join('') + '</div></fieldset>';
+      var extra = s.name === 'Purchase offer'
+        ? '<div class="offer-actions"><button type="button" class="btn primary" id="offerBtn">Save &amp; email offer PDF</button>' +
+          '<span class="muted">Emails the filled-in Purchase Offer Agreement to ' + esc(deal.agent_name || (USER.isAdmin ? 'the agent on this deal' : 'you')) +
+          ' and fills the same form in the buyer\'s SkySlope file.' + (deal.offer_sent ? ' Last sent: ' + esc(deal.offer_sent.replace('T', ' ')) + '.' : '') + '</span></div>'
+        : '';
+      return '<fieldset><legend>' + esc(s.name) + '</legend><div class="grid">' + s.fields.map(function (f) { return fieldHtml(f, side, deal[f.key], !deal.deal_id); }).join('') + extra + '</div></fieldset>';
     }).join('');
+    if ($('f_offer_date') && !$('f_offer_date').value) $('f_offer_date').value = todayStr();
+    if ($('f_offer_cash_on_deed') && $('f_offer_cash_on_deed').value) $('f_offer_cash_on_deed').setAttribute('data-manual', '1');
 
     // Milestones
     var list = CFG.milestones[side] || [];
@@ -561,8 +571,8 @@
     Array.prototype.forEach.call(document.querySelectorAll('[data-pane]'), function (p) { p.classList.toggle('hidden', p.getAttribute('data-pane') !== name); });
   }
 
-  $('dealForm').addEventListener('submit', function (ev) {
-    ev.preventDefault();
+  /** Reads the form; returns the save input, or null after showing what's missing. */
+  function collectInput() {
     var side = CURRENT.side, fields = {}, missing = [];
     CFG.fields.forEach(function (f) {
       if (f.sides.indexOf(side) < 0) return;
@@ -573,8 +583,8 @@
     });
     if (USER.isAdmin && !$('edAgent').value) missing.unshift('Agent on this deal');
     var sc = updateStageMarks();
-    if (!missing.length && sc.missing.length) { setTab('details'); toast(sc.stage + ': please fill in ' + sc.missing.join(', '), true); return; }
-    if (missing.length) { setTab('details'); toast('Please fill in: ' + missing.join(', '), true); return; }
+    if (!missing.length && sc.missing.length) { setTab('details'); toast(sc.stage + ': please fill in ' + sc.missing.join(', '), true); return null; }
+    if (missing.length) { setTab('details'); toast('Please fill in: ' + missing.join(', '), true); return null; }
 
     var milestones = {};
     Array.prototype.forEach.call(document.querySelectorAll('#msList .ms'), function (row) {
@@ -585,8 +595,23 @@
       };
     });
 
+    return { deal_id: CURRENT.deal_id || '', side: side, status: $('edStatus').value, fields: fields, milestones: milestones, agent_email: USER.isAdmin ? $('edAgent').value : '' };
+  }
+
+  function reopenAfterSave(res) {
+    return call('getDeal', TOKEN, res.deal_id).then(function (d) {
+      var tab = document.querySelector('.tab.on').getAttribute('data-tab');
+      var y = window.scrollY;
+      openEditor(d); setTab(tab); refreshListQuiet(); window.scrollTo(0, y);
+    });
+  }
+
+  $('dealForm').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var input = collectInput();
+    if (!input) return;
     var btn = $('saveBtn'); busy(btn, true, 'Saving…');
-    call('saveDeal', TOKEN, { deal_id: CURRENT.deal_id || '', side: side, status: $('edStatus').value, fields: fields, milestones: milestones, agent_email: USER.isAdmin ? $('edAgent').value : '' })
+    call('saveDeal', TOKEN, input)
       .then(function (res) {
         var msg = res.isNew ? 'Deal submitted (' + res.deal_id + '). Queued for SkySlope.' : 'Changes saved.';
         if (res.status && res.status !== $('edStatus').value) msg += ' Status moved to ' + res.status + '.';
@@ -598,6 +623,37 @@
       })
       .catch(function (e) { toast(e.message, true); })
       .then(function () { busy(btn, false); btn.textContent = CURRENT && CURRENT.deal_id ? 'Save changes' : 'Submit deal'; });
+  });
+
+  // ---------- purchase offer (buyer deals) ----------
+  var OFFER_NEEDS = { offer_date: 1, offer_price: 1, street_number: 1, street_name: 1, city: 1, sale_comm_pct: 1, offer_comp_from_proceeds: 1 };
+  $('detailsPane').addEventListener('click', function (ev) {
+    if (ev.target.id !== 'offerBtn') return;
+    var gaps = Object.keys(OFFER_NEEDS).filter(function (k) { return !fieldVal(k); });
+    gaps.forEach(function (k) { var el = $('f_' + k); if (el) el.style.borderColor = 'var(--bad)'; });
+    if (gaps.length) {
+      var names = gaps.map(function (k) { var f = CFG.fields.filter(function (x) { return x.key === k; })[0]; return f ? labelFor(f, 'Buyer') : k; });
+      toast('To create the offer, fill in: ' + names.join(', '), true); return;
+    }
+    var input = collectInput();
+    if (!input) return;
+    var btn = ev.target; busy(btn, true, 'Creating offer…');
+    call('sendPurchaseOffer', TOKEN, input)
+      .then(function (res) {
+        toast('Offer PDF emailed to ' + res.emailed_to + '. It\'s queued to be filled in on the buyer\'s SkySlope file.');
+        return reopenAfterSave(res);
+      })
+      .catch(function (e) { toast(e.message, true); })
+      .then(function () { busy(btn, false); });
+  });
+  function num(k) { return Number(String(fieldVal(k)).replace(/[$,\s]/g, '')) || 0; }
+  $('detailsPane').addEventListener('input', function (ev) {
+    var id = ev.target.id;
+    if (id === 'f_offer_cash_on_deed') { ev.target.setAttribute('data-manual', ev.target.value ? '1' : ''); return; }
+    if (['f_offer_price', 'f_offer_cash_on_signing', 'f_offer_mortgage'].indexOf(id) < 0) return;
+    var deed = $('f_offer_cash_on_deed');
+    if (!deed || deed.getAttribute('data-manual') === '1' || !num('offer_price')) return;
+    deed.value = String(num('offer_price') - num('offer_cash_on_signing') - num('offer_mortgage'));
   });
 
   function refreshListQuiet() { call('listDeals', TOKEN).then(function (d) { DEALS = d || []; }).catch(function () {}); }
