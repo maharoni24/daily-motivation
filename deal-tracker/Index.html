@@ -284,7 +284,7 @@
           <fieldset id="mxMedia">
             <legend>Photos</legend>
             <p class="muted" style="margin:0;font-size:13px">Photo #1 is the primary photo in Matrix. Use the arrows to set the order; captions are optional.</p>
-            <div id="mxMediaLocked" class="muted hidden" style="margin:8px 0">Submit the deal first, then add photos and documents here.</div>
+            <div id="mxMediaLocked" class="stage-banner hidden" style="margin:8px 0">Add photos and documents now. They're saved when you press <b>Submit deal</b>.</div>
             <div id="mxMediaArea">
               <label class="drop" id="mxPhotoDrop"><input type="file" id="mxPhotoInput" accept="image/*" multiple><span>Tap to add photos (or drop them here)</span></label>
               <ol class="photos" id="mxPhotos"></ol>
@@ -292,7 +292,7 @@
               <div class="docs-upload">
                 <div><label for="mxDocCat">Document type</label><select id="mxDocCat"></select></div>
                 <div><label for="mxDocInput">File (max 20 MB)</label><input type="file" id="mxDocInput" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"></div>
-                <span class="muted" style="font-size:12px;align-self:center">Uploads start as soon as you pick a file.</span>
+                <span class="muted" style="font-size:12px;align-self:center" id="mxDocHint">Uploads start as soon as you pick a file.</span>
               </div>
               <div id="mxDocs"></div>
             </div>
@@ -702,6 +702,7 @@
         }
         return res;
       })
+      .then(function (res) { return mxUploadPending(res.deal_id, btn).then(function () { return res; }); })
       .then(function (res) {
         var msg = res.isNew ? 'Deal submitted (' + res.deal_id + '). Queued for SkySlope.' : 'Changes saved.';
         if (res.status && res.status !== $('edStatus').value) msg += ' Status moved to ' + res.status + '.';
@@ -984,7 +985,8 @@
     Array.prototype.forEach.call(document.querySelectorAll('#mxForm [data-repeat]'), function (el) { mxRenderRepeat(el.getAttribute('data-repeat')); });
     var locked = !(CURRENT && CURRENT.deal_id);
     $('mxMediaLocked').classList.toggle('hidden', !locked);
-    $('mxMediaArea').classList.toggle('hidden', locked);
+    $('mxMediaArea').classList.remove('hidden');
+    $('mxDocHint').textContent = locked ? 'Files are saved when you submit the deal.' : 'Uploads start as soon as you pick a file.';
     $('mxIssues').innerHTML = '';
     mxRenderPhotos(); mxRenderDocs(); mxUpdate();
   }
@@ -1126,7 +1128,25 @@
   });
 
   // ---------- photos & documents ----------
-  function mxMediaPayload() { return MX.media.map(function (m) { return { id: m.id, caption: m.caption, category: m.category }; }); }
+  function mxMediaPayload() { return MX.media.filter(function (m) { return !m.pending; }).map(function (m) { return { id: m.id, caption: m.caption, category: m.category }; }); }
+
+  /** After a new deal is submitted: upload the photos/documents picked before it had an ID, in their order. */
+  function mxUploadPending(dealId, btn) {
+    var pending = (MX && MX.media || []).filter(function (m) { return m.pending; });
+    if (!pending.length) return Promise.resolve();
+    var ordered = pending.filter(function (m) { return m.kind === 'photo'; }).concat(pending.filter(function (m) { return m.kind !== 'photo'; }));
+    var n = 0, failed = [];
+    return ordered.reduce(function (p, m) {
+      return p.then(function () {
+        if (btn) btn.innerHTML = '<span class="spinner"></span>Saving photos ' + (++n) + ' of ' + ordered.length + '…';
+        return readB64(m.file).then(function (data) {
+          return call('uploadMatrixFile', TOKEN, dealId, { name: m.file.name, mimeType: m.file.type, data: data, kind: m.kind, category: m.category, caption: m.caption });
+        }).catch(function () { failed.push(m.file.name); });
+      });
+    }, Promise.resolve()).then(function () {
+      if (failed.length) toast('These files did not upload; add them again on the MLS listing tab: ' + failed.join(', '), true);
+    });
+  }
 
   function mxRenderPhotos() {
     var photos = MX.media.filter(function (m) { return m.kind === 'photo'; });
@@ -1134,7 +1154,7 @@
       var src = MX.local[p.id] || MX.thumbs[p.id] || '';
       return '<li class="photo"><div class="thumb">' + (src ? '<img alt="" src="' + esc(src) + '">' : '') + '<b>' + (i + 1) + (i === 0 ? ' · Primary' : '') + '</b></div>' +
         '<div><input type="text" data-cap="' + esc(p.id) + '" value="' + esc(p.caption) + '" placeholder="Caption (optional)">' +
-        '<div class="muted" style="font-size:12px;margin:4px 0">' + esc(p.name) + (p.size_kb ? ' · ' + (p.size_kb / 1024).toFixed(1) + ' MB' : '') + '</div>' +
+        '<div class="muted" style="font-size:12px;margin:4px 0">' + esc(p.name) + (p.size_kb ? ' · ' + (p.size_kb / 1024).toFixed(1) + ' MB' : '') + (p.pending ? ' · <b>saves when you submit</b>' : '') + '</div>' +
         '<div class="row" style="gap:6px"><button type="button" class="icon-btn" data-pmove="' + esc(p.id) + '" data-d="-1"' + (i === 0 ? ' disabled' : '') + ' aria-label="Move up">↑</button>' +
         '<button type="button" class="icon-btn" data-pmove="' + esc(p.id) + '" data-d="1"' + (i === photos.length - 1 ? ' disabled' : '') + ' aria-label="Move down">↓</button>' +
         (i ? '<button type="button" class="btn" style="padding:6px 10px" data-pfirst="' + esc(p.id) + '">Make primary</button>' : '') +
@@ -1168,6 +1188,9 @@
     if (b.hasAttribute('data-pfirst')) mxMovePhoto(b.getAttribute('data-pfirst'), 0);
     if (b.hasAttribute('data-pdel')) {
       var fid = b.getAttribute('data-pdel');
+      if (MX.media.some(function (m) { return m.id === fid && m.pending; })) {
+        MX.media = MX.media.filter(function (m) { return m.id !== fid; }); mxRenderPhotos(); mxRenderDocs(); return;
+      }
       if (!confirm('Remove this file from the listing?')) return;
       busy(b, true, '');
       mxSaveIfDirty().then(function () { return call('deleteMatrixFile', TOKEN, CURRENT.deal_id, fid); })
@@ -1187,11 +1210,20 @@
   function mxUpload(files, kind) {
     files = Array.prototype.slice.call(files || []);
     if (!files.length) return;
-    if (!CURRENT || !CURRENT.deal_id) { toast('Submit the deal first, then add photos and documents.', true); return; }
     if (kind === 'photo') files = files.filter(function (f) { return /^image\//.test(f.type); });
     var big = files.filter(function (f) { return f.size > CFG.maxUploadBytes; });
     if (big.length) { toast(big[0].name + ' is over 20 MB.', true); return; }
     var cat = $('mxDocCat').value, n = 0;
+    if (!CURRENT || !CURRENT.deal_id) {
+      files.forEach(function (file) {
+        var id = 'pending-' + Math.random().toString(36).slice(2, 9);
+        if (kind === 'photo') MX.local[id] = URL.createObjectURL(file);
+        MX.media.push({ id: id, pending: true, file: file, kind: kind, name: file.name, caption: '', category: kind === 'doc' ? cat : '', size_kb: Math.round(file.size / 1024) });
+      });
+      mxRenderPhotos(); mxRenderDocs();
+      toast(files.length + ' file' + (files.length > 1 ? 's' : '') + ' added. They save when you press Submit deal.');
+      return;
+    }
     toast('Uploading ' + files.length + ' file' + (files.length > 1 ? 's' : '') + '…');
     mxSaveIfDirty().then(function () {
       return files.reduce(function (p, file) {

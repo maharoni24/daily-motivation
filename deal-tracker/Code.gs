@@ -27,7 +27,7 @@
 
 var APP_NAME = 'Agent Deal Tracker';
 /** Shown at the top of the page so you can tell which version the agents' link is serving. */
-var APP_VERSION = '2026-11-14b';
+var APP_VERSION = '2026-11-14c';
 
 /** Mac's "Office Sheets" spreadsheet (inventory tabs). Override with Script Property INVENTORY_SPREADSHEET_ID. */
 var DEFAULT_INVENTORY_ID = '1-Bob1r8pXD3AkgtDJXs9-IiSWHWIwTGgS5zULBgQmXI';

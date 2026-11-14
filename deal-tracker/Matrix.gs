@@ -111,7 +111,7 @@ function uploadMatrixFile(token, dealId, file) {
     rec.media = rec.media || [];
     rec.media.push({
       id: saved.getId(), kind: kind, name: name, original: name, size_kb: Math.round(bytes.length / 1024),
-      caption: '', category: kind === 'doc' ? (MATRIX_DOC_TYPES.indexOf(file.category) >= 0 ? file.category : 'Other') : '',
+      caption: String(file.caption || '').slice(0, 120), category: kind === 'doc' ? (MATRIX_DOC_TYPES.indexOf(file.category) >= 0 ? file.category : 'Other') : '',
       added: isoNow_(), by: ctx.user.email
     });
     rec.updated_at = isoNow_();
