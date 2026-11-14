@@ -16,7 +16,7 @@ Agent submits / edits a deal
    └─▶ SkySlope Status = "Queued"
           the SkySlope task (SKYSLOPE_TASK.md, runs in your Chrome) opens the file:
           Forms (brokerage template) → Transaction details → Contacts → Commission
-          → prepares the signature request for the agent or you to review and send
+          → sends the forms for signature automatically (your SkySlope pending-review automation checks them before approval)
           → Darwin picks the file up from SkySlope
 ```
 
@@ -152,4 +152,4 @@ After adding fields, run `upgradeColumns`.
 - Agents only see and edit their own deals. This is enforced on the server.
 - After 5 wrong PINs the account is locked for 15 minutes. Sessions last 6 hours.
 - The form reads Office Sheets only to find and write the two inventory tabs. It never touches Roster, Office Passwords or any other tab.
-- The SkySlope task never sends anything for signature on its own and never deletes or approves anything in SkySlope.
+- The SkySlope task sends forms for signature automatically once they're filled in and checked (it holds them back if a signer has no email or details are missing). It never deletes or approves anything in SkySlope; your pending-review automation handles approval. The only thing it ever voids is the unsigned envelope of a listing change the agent withdrew.
