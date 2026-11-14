@@ -93,6 +93,11 @@
   .ms .ml { font-weight: 600; }
   .ms.done .ml { color: var(--ok); }
   .ms .note { grid-column: 2 / -1; font-size: 13px; padding: 6px 8px; }
+  .btn.danger { color: var(--bad); border-color: #fecaca; }
+  .btn.danger.solid { background: var(--bad); border-color: var(--bad); color: #fff; }
+  .delbox { border: 1px solid #fecaca; background: #fef2f2; border-radius: 10px; padding: 12px 14px; margin-top: 12px; font-size: 14px; }
+  .delbox label { display: flex; gap: 8px; align-items: flex-start; font-weight: 500; margin: 8px 0 10px; }
+  .delbox input[type=checkbox] { width: 18px; height: 18px; margin-top: 2px; flex: none; }
   .savebar { position: sticky; bottom: 0; background: rgba(244,245,247,.95); backdrop-filter: blur(4px); padding: 12px 0; display: flex; gap: 10px; justify-content: flex-end; border-top: 1px solid var(--line); margin-top: 10px; }
   .docs-upload { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end; margin-bottom: 14px; }
   .doc { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
@@ -208,7 +213,17 @@
         </div>
       </div>
 
+      <div id="delBox" class="delbox hidden" role="alertdialog" aria-labelledby="delTitle">
+        <b id="delTitle">Delete this deal?</b>
+        <div id="delWhat" class="muted" style="margin-top:4px"></div>
+        <label><input type="checkbox" id="delInv" checked> <span id="delInvText">Also remove its row from the office inventory tab</span></label>
+        <div class="row">
+          <button class="btn danger solid" type="button" id="delConfirm">Delete permanently</button>
+          <button class="btn" type="button" id="delCancel">Keep it</button>
+        </div>
+      </div>
       <div class="savebar">
+        <button class="btn danger hidden" type="button" id="delBtn" style="margin-right:auto">Delete deal</button>
         <button class="btn" type="button" data-go="list">Cancel</button>
         <button class="btn primary" type="submit" id="saveBtn">Save deal</button>
       </div>
@@ -407,6 +422,8 @@
         (deal.skyslope_file ? ' <a href="' + esc(deal.skyslope_file) + '" target="_blank" rel="noopener">Open in SkySlope</a>' : '')
       : 'Fields marked * are required. Fill in whatever else you have now and add the rest as the deal moves along.';
     $('saveBtn').textContent = deal.deal_id ? 'Save changes' : 'Submit deal';
+    $('delBtn').classList.toggle('hidden', !(USER.isAdmin && deal.deal_id));
+    $('delBox').classList.add('hidden');
 
     // Details
     var sections = [];
@@ -570,6 +587,27 @@
     Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) { t.classList.toggle('on', t.getAttribute('data-tab') === name); });
     Array.prototype.forEach.call(document.querySelectorAll('[data-pane]'), function (p) { p.classList.toggle('hidden', p.getAttribute('data-pane') !== name); });
   }
+
+  // ---------- delete (admin only) ----------
+  $('delBtn').addEventListener('click', function () {
+    var d = CURRENT || {};
+    var addr = addrOf(d) || 'no property';
+    $('delWhat').textContent = (d.deal_id || '') + ' \u00b7 ' + addr + ' \u00b7 ' + (d.agent_name || d.agent_email || '') +
+      '. This removes it from the Deals tab and can\'t be undone here.' +
+      (d.skyslope_file ? ' Its SkySlope file is NOT deleted: remove that in SkySlope yourself.' : '');
+    $('delInvText').textContent = 'Also remove its row from the ' + (d.inventory_tab || ((d.office || 'office') + ' Inventory')) + ' tab (' + addr + ')';
+    $('delInv').checked = true;
+    $('delBox').classList.remove('hidden');
+    $('delBox').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+  $('delCancel').addEventListener('click', function () { $('delBox').classList.add('hidden'); });
+  $('delConfirm').addEventListener('click', function () {
+    var btn = $('delConfirm'); busy(btn, true, 'Deleting\u2026');
+    call('deleteDeal', TOKEN, CURRENT.deal_id, $('delInv').checked)
+      .then(function (r) { toast(r.message); $('delBox').classList.add('hidden'); show('list'); return refreshList(); })
+      .catch(function (e) { toast(e.message, true); })
+      .then(function () { busy(btn, false); });
+  });
 
   /** Reads the form; returns the save input, or null after showing what's missing. */
   function collectInput() {

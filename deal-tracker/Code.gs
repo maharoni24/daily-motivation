@@ -47,6 +47,10 @@ var SALE = ['Seller', 'Buyer'];
 var LEASE = ['Tenant', 'Landlord'];
 var LISTING_SIDES = ['Seller', 'Landlord'];
 var CLIENT_BUYING = ['Buyer', 'Tenant'];
+var REL_BUYER_CLIENT = 'Buyer client (Buyer Broker Agreement)', REL_BUYER_UNREP = 'Unrepresented buyer';
+var REL_TENANT_CLIENT = 'Tenant client (Tenant Representation Agreement)', REL_TENANT_UNREP = 'Unrepresented tenant';
+var UNREPRESENTED = [REL_BUYER_UNREP, REL_TENANT_UNREP];
+var CONTRACT_STATUSES = ['Under Contract', 'Closing Set', 'Sold'];
 
 // ---- SkySlope dropdown values, exactly as SkySlope shows them --------------
 
@@ -84,10 +88,15 @@ var US_STATES = ['New York', 'New Jersey', 'Connecticut', 'Pennsylvania', 'Flori
 var FIELDS = [
   // ---- SkySlope setup
   { key: 'office', col: 'Office', label: 'Office', type: 'select', options: OFFICES, sides: ALL, section: 'SkySlope setup', req: true, sky: 'OFFICE' },
+  { key: 'client_relationship', col: 'Client Relationship', label: 'How are you working with your client?', type: 'select',
+    optionsBySide: { Buyer: [REL_BUYER_CLIENT, REL_BUYER_UNREP], Tenant: [REL_TENANT_CLIENT, REL_TENANT_UNREP] }, sides: CLIENT_BUYING, section: 'SkySlope setup', req: CLIENT_BUYING,
+    sky: 'Forms template (Buyer Broker Template / Unrepresented Buyer; Tenant Representation / Unrepresented Tenant)',
+    helpBySide: { Buyer: 'Buyer client gets the Buyer Broker Agreement. An unrepresented buyer gets the agency disclosure and fair housing notice only.',
+      Tenant: 'Tenant client gets the Tenant Representation Agreement. An unrepresented tenant gets the agency disclosure and fair housing notice only.' } },
   { key: 'represent_both', col: 'Dual Agency', label: 'Do you (or another CBAH agent) represent BOTH sides?', type: 'select', options: ['No', 'Yes'], default: 'No', sides: ALL, section: 'SkySlope setup', sky: 'TYPE (REPRESENTATION) = Both …' },
   { key: 'checklist_type', col: 'SkySlope Checklist Type', label: 'SkySlope checklist type', type: 'select', optionsBySide: SKY_CHECKLISTS, sides: ALL, section: 'SkySlope setup', sky: 'CHECKLIST TYPE',
     help: 'Pick "Double Sided" if you represent both sides; "Commercial" for commercial deals.' },
-  { key: 'forms_template', col: 'SkySlope Forms Template', label: 'SkySlope brokerage template (forms package)', type: 'select', optionsBySide: SKY_TEMPLATES, sides: ALL, section: 'SkySlope setup', sky: 'Forms: template',
+  { key: 'forms_template', col: 'SkySlope Forms Template', label: 'SkySlope brokerage template (forms package)', type: 'select', optionsBySide: SKY_TEMPLATES, sides: LISTING_SIDES, section: 'SkySlope setup', req: LISTING_SIDES, sky: 'Forms: template',
     help: 'Brokerage templates only. This loads the forms that get filled and sent to your client for signature.' },
   { key: 'seller_net_sheet', col: 'Seller Net Sheet', label: 'Create a seller net sheet?', type: 'select', options: ['Yes', 'No'], default: 'Yes', sides: ['Seller'], section: 'SkySlope setup', sky: 'Forms: Create a Seller Net Sheet' },
   { key: 'co_agent', col: 'Co-Agent', label: 'Co-agent (CBAH agent on the deal with you)', type: 'roster', sides: ALL, section: 'SkySlope setup', sky: 'CO-BUYER AGENT' },
@@ -106,7 +115,8 @@ var FIELDS = [
   { key: 'state', col: 'State', label: 'State', type: 'select', options: US_STATES, default: 'New York', sides: ALL, section: 'Property', sky: 'STATE' },
   { key: 'zip', col: 'Zip', label: 'Zip code', type: 'text', sides: ALL, section: 'Property', sky: 'ZIP CODE' },
   { key: 'county', col: 'County', label: 'County', type: 'text', sides: ALL, section: 'Property', sky: 'COUNTY' },
-  { key: 'year_built', col: 'Year Built', label: 'Year built', type: 'number', sides: ALL, section: 'Property', sky: 'YEAR BUILT' },
+  { key: 'year_built', col: 'Year Built', label: 'Year built', type: 'number', sides: ALL, section: 'Property', req: LISTING_SIDES, sky: 'YEAR BUILT',
+    help: 'Built before 1978? The lead paint disclosure is sent automatically.' },
 
   // ---- Our client
   { key: 'client_is_entity', col: 'Client Is Entity', label: 'Client is a company, trust or estate?', type: 'select', options: ['No', 'Yes'], default: 'No', sides: ALL, section: 'Your client', sky: 'Trust/company/entity checkbox' },
@@ -124,10 +134,15 @@ var FIELDS = [
   { key: 'client_address', col: 'Client Current Address', label: 'Client\'s current home address', type: 'text', sides: ALL, section: 'Your client', sky: 'Purchase Offer: Residing at' },
 
   // ---- Listing / terms
-  { key: 'list_price', col: 'List Price', label: 'List price', type: 'money', sides: ALL, section: 'Price & dates', sky: 'LIST PRICE',
+  { key: 'list_price', col: 'List Price', label: 'List price', type: 'money', sides: ALL, section: 'Price & dates', req: LISTING_SIDES, sky: 'LIST PRICE',
     labels: { Landlord: 'Listed monthly rent', Tenant: 'Advertised monthly rent', Buyer: 'List price (from MLS)' } },
-  { key: 'listing_date', col: 'Listing Date', label: 'Listing agreement date', type: 'date', sides: LISTING_SIDES, section: 'Price & dates' },
-  { key: 'listing_expiration', col: 'Listing Expiration', label: 'Listing expiration date', type: 'date', sides: LISTING_SIDES, section: 'Price & dates', sky: 'LISTING EXPIRE DATE' },
+  { key: 'listing_date', col: 'Listing Date', label: 'Listing agreement start date', type: 'date', sides: LISTING_SIDES, section: 'Price & dates', req: LISTING_SIDES },
+  { key: 'listing_expiration', col: 'Listing Expiration', label: 'Listing expiration date', type: 'date', sides: LISTING_SIDES, section: 'Price & dates', req: LISTING_SIDES, sky: 'LISTING EXPIRE DATE' },
+  { key: 'coming_soon', col: 'Coming Soon', label: 'Start as Coming Soon before going Active?', type: 'select', options: ['Yes', 'No'], sides: LISTING_SIDES, section: 'Price & dates', req: LISTING_SIDES, sky: 'Exclusive Right to Sell / Rent: Coming Soon election',
+    help: 'Yes = on the MLS as Coming Soon first, then Active on a later date (e.g. Coming Soon today, Active next Friday). No = straight to Active.' },
+  { key: 'coming_soon_date', col: 'Coming Soon Date', label: 'Coming Soon start date (shows on MLS as Coming Soon)', type: 'date', sides: LISTING_SIDES, section: 'Price & dates', help: 'Required if Coming Soon is Yes.' },
+  { key: 'active_date', col: 'Go-Active Date', label: 'Active (live) date: showings start', type: 'date', sides: LISTING_SIDES, section: 'Price & dates', req: LISTING_SIDES,
+    help: 'With Coming Soon, this must be after the Coming Soon start date.' },
   { key: 'price', col: 'Sale Price / Rent', label: 'Accepted price', type: 'money', sides: ALL, section: 'Price & dates', sky: 'SALE PRICE',
     labels: { Seller: 'Accepted sale price (once you have an offer)', Buyer: 'Accepted purchase price', Tenant: 'Monthly rent (agreed)', Landlord: 'Monthly rent (agreed with tenant)' } },
   { key: 'acceptance_date', col: 'Acceptance Date', label: 'Offer accepted date', type: 'date', sides: ALL, section: 'Price & dates', sky: 'ACCEPTANCE DATE',
@@ -145,9 +160,15 @@ var FIELDS = [
   { key: 'brokerage_holds_deposit', col: 'Brokerage Holds Deposit', label: 'Is our brokerage holding the deposit?', type: 'select', options: ['No', 'Yes'], default: 'No', sides: ALL, section: 'Price & dates', sky: 'Will Brokerage Hold Earnest Money?' },
 
   // ---- Commission
-  { key: 'listing_comm_pct', col: 'Listing Commission %', label: 'Listing-side commission %', type: 'number', sides: ALL, section: 'Commission', sky: 'LISTING COMMISSION (%)' },
+  { key: 'listing_comm_pct', col: 'Listing Commission %', label: 'Listing-side commission %', type: 'number', sides: ALL, section: 'Commission', sky: 'LISTING COMMISSION (%)',
+    helpBySide: { Seller: 'Required (% here or flat $ below): it goes on the Exclusive Right to Sell.', Landlord: 'Required (% here or flat $ below): it goes on the Exclusive Right to Rent.' } },
   { key: 'listing_comm_amt', col: 'Listing Commission $', label: 'Listing-side commission $ (if flat)', type: 'money', sides: ALL, section: 'Commission', sky: 'LISTING COMMISSION ($)' },
-  { key: 'sale_comm_pct', col: 'Buyer-Side Commission %', label: 'Buyer/tenant-side commission %', type: 'number', sides: ALL, section: 'Commission', sky: 'SALE COMMISSION (%)' },
+  { key: 'dual_comm_pct', col: 'Dual Agency Commission %', label: 'Dual agency commission % (if we also represent the buyer)', type: 'number', sides: LISTING_SIDES, section: 'Commission', sky: 'Exclusive Right to Sell / Rent: dual agency compensation line',
+    labels: { Landlord: 'Dual agency commission % (if we also represent the tenant)' },
+    help: 'Required (% here or flat $ below): the line under the listing commission on the Exclusive Right to Sell / Rent.' },
+  { key: 'dual_comm_amt', col: 'Dual Agency Commission $', label: 'Dual agency commission $ (if flat)', type: 'money', sides: LISTING_SIDES, section: 'Commission', sky: 'Exclusive Right to Sell / Rent: dual agency compensation line' },
+  { key: 'sale_comm_pct', col: 'Buyer-Side Commission %', label: 'Buyer/tenant-side commission %', type: 'number', sides: ALL, section: 'Commission', req: CLIENT_BUYING, sky: 'SALE COMMISSION (%)',
+    helpBySide: { Buyer: 'Required for a buyer client: it goes on the Buyer Broker Agreement.', Tenant: 'Required for a tenant client: it goes on the Tenant Representation Agreement.' } },
   { key: 'sale_comm_amt', col: 'Buyer-Side Commission $', label: 'Buyer/tenant-side commission $ (if flat)', type: 'money', sides: ALL, section: 'Commission', sky: 'SALE COMMISSION ($)' },
   { key: 'personal_deal', col: 'Personal Deal', label: 'Personal deal (you or family are the client)?', type: 'select', options: ['No', 'Yes'], default: 'No', sides: ALL, section: 'Commission', sky: 'PERSONAL DEAL' },
   { key: 'referral_type', col: 'Referral Type', label: 'Referral fee owed?', type: 'select', options: ['No Referral', 'External', 'Internal'], default: 'No Referral', sides: ALL, section: 'Commission', sky: 'REFERRAL TYPE' },
@@ -276,6 +297,7 @@ var STAGE_RULES = {
     { label: 'Property address (street number + street name) or MLS #', anyOf: [['street_number', 'street_name'], ['mls_number']] }
   ],
   'Under Contract': [
+    { label: 'Offer accepted / application approved date', anyOf: [['acceptance_date']] },
     { label: 'Contract fully signed date', anyOf: [['contract_date']] },
     { label: 'Closing date', anyOf: [['closing_date']] },
     { label: 'Other party name', anyOf: [['other_first'], ['other_last']] },
@@ -651,10 +673,21 @@ function saveDeal(token, input) {
       if (f.type === 'money' || f.type === 'number') v = v.replace(/[$,%\s]/g, '');
       var opts = optionsFor_(f, deal.side);
       if (v && opts && opts.indexOf(v) < 0) errors.push(labelFor_(f, deal.side) + ' (not a valid choice)');
-      if (isRequired_(f, deal.side) && !v) errors.push(labelFor_(f, deal.side));
+      var unrep = UNREPRESENTED.indexOf(String((input.fields || {}).client_relationship || '')) >= 0;
+      if (isRequired_(f, deal.side) && !v && !(f.key === 'sale_comm_pct' && unrep)) errors.push(labelFor_(f, deal.side));
       deal[f.key] = v;
     });
+    if (LISTING_SIDES.indexOf(deal.side) >= 0) {
+      if (!deal.listing_comm_pct && !deal.listing_comm_amt) errors.push('Listing-side commission (% or flat $)');
+      if (deal.coming_soon === 'Yes' && !deal.coming_soon_date) errors.push('Coming Soon start date');
+      if (!deal.dual_comm_pct && !deal.dual_comm_amt) errors.push('Dual agency commission (% or flat $)');
+      if (deal.coming_soon === 'Yes' && deal.coming_soon_date && deal.active_date && deal.active_date <= deal.coming_soon_date) errors.push('Active (live) date must be after the Coming Soon start date');
+    }
     if (errors.length) throw new Error('Please check: ' + errors.join(', '));
+
+    // Buyer/Tenant: the SkySlope forms template follows the client relationship
+    if (deal.side === 'Buyer') deal.forms_template = deal.client_relationship === REL_BUYER_UNREP ? 'Unrepresented Buyer' : 'Buyer Broker Template';
+    if (deal.side === 'Tenant') deal.forms_template = deal.client_relationship === REL_TENANT_UNREP ? 'Unrepresented Tenant' : 'Tenant Representation';
 
     deal.represents = deal.represent_both === 'Yes' ? 'Dual' : deal.side;
     deal.skyslope_type = skySlopeType_(deal);
@@ -679,6 +712,7 @@ function saveDeal(token, input) {
 
     // Status: agent's choice, but a completed milestone moves it forward (never back)
     var status = STATUSES.indexOf(input.status) >= 0 ? input.status : (before.status || defaultStatus_(deal.side));
+    if (!existing && deal.coming_soon === 'Yes' && status === 'Active' && deal.active_date > todayStr_()) status = 'Coming Soon';
     msChanges.forEach(function (c) {
       if (c.change === 'completed' && c.status && status !== 'Cancelled' && status !== 'TOM' &&
           (STATUS_RANK[c.status] || 0) > (STATUS_RANK[status] || 0)) status = c.status;
@@ -737,6 +771,70 @@ function saveDeal(token, input) {
     deal_id: result.deal.deal_id, isNew: result.isNew, status: result.deal.status,
     skyslope_status: result.deal.skyslope_status, inventory: inv
   };
+}
+
+// ---------------------------------------------------------------------------
+// DELETE A DEAL (admin only)
+// Removes the deal's row from Deals, cancels its waiting document drafts, and,
+// if asked, removes its matching row from the office inventory tab. SkySlope is
+// never touched: a file already opened there is deleted by Mac in SkySlope.
+// ---------------------------------------------------------------------------
+
+function deleteDeal(token, dealId, removeInventory) {
+  var user = requireSession_(token);
+  if (!user.isAdmin) throw new Error('Only an admin can delete deals.');
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  var deal, invMsg = '', docsMsg = '';
+  try {
+    var found = findDealRow_(dealId);
+    if (!found) throw new Error('Deal not found. It may already be deleted.');
+    deal = found.deal;
+    getSpreadsheet_().getSheetByName(SHEETS.DEALS).deleteRow(found.rowIndex);
+
+    // Waiting uploads: delete their Gmail drafts so they are never sent
+    var ds = getSpreadsheet_().getSheetByName(SHEETS.DOCS);
+    if (ds && ds.getLastRow() > 1) {
+      var data = ds.getDataRange().getValues(), h = indexHeaders_(data[0]), n = 0;
+      for (var i = 1; i < data.length; i++) {
+        if (String(data[i][h['Deal ID']]) !== dealId || String(data[i][h['Status']]) !== DOC_WAITING) continue;
+        try { GmailApp.getDraft(String(data[i][h['Draft ID']])).deleteDraft(); } catch (e) {}
+        ds.getRange(i + 1, h['Status'] + 1).setValue('Cancelled (deal deleted)');
+        n++;
+      }
+      if (n) docsMsg = ' ' + n + ' waiting document' + (n > 1 ? 's' : '') + ' cancelled.';
+    }
+
+    if (removeInventory) invMsg = ' ' + removeFromInventory_(deal);
+  } finally {
+    lock.releaseLock();
+  }
+  logSync_(dealId, 'Deal Tracker', 'DELETED', 'Deleted by ' + user.email + '.' + invMsg + docsMsg);
+  return {
+    ok: true,
+    message: 'Deleted ' + dealId + '.' + invMsg + docsMsg + (deal.skyslope_file ? ' Delete its SkySlope file in SkySlope.' : '')
+  };
+}
+
+/** Removes the deal's row from whichever office inventory tab holds it (one row only). */
+function removeFromInventory_(deal) {
+  if (!deal.mls_number && !(deal.street_number && deal.street_name)) return 'It had no property, so nothing was on the inventory.';
+  var id = PropertiesService.getScriptProperties().getProperty('INVENTORY_SPREADSHEET_ID') || DEFAULT_INVENTORY_ID;
+  var ss = SpreadsheetApp.openById(id);
+  var hits = [];
+  OFFICES.forEach(function (o) {
+    var sheet = ss.getSheetByName(o + ' Inventory');
+    if (!sheet || sheet.getLastRow() < 2) return;
+    var rows = sheet.getRange(1, 1, sheet.getLastRow(), 13).getDisplayValues();
+    for (var r = 1; r < rows.length; r++) {
+      if (String(rows[r][0]).trim().toUpperCase() === 'TOTAL') break;
+      if (rowMatches_(rows[r], deal)) hits.push({ sheet: sheet, row: r + 1, addr: rows[r][0] });
+    }
+  });
+  if (!hits.length) return 'No matching inventory row was found.';
+  if (hits.length > 1) return 'More than one inventory row matched (' + hits.map(function (x) { return x.sheet.getName() + ' row ' + x.row; }).join(', ') + '), so none was removed: delete the right one by hand.';
+  hits[0].sheet.deleteRow(hits[0].row);
+  return 'Removed "' + hits[0].addr + '" from ' + hits[0].sheet.getName() + '.';
 }
 
 // ---------------------------------------------------------------------------
@@ -1067,6 +1165,10 @@ function commissionDollars_(deal) {
   var total = 0;
   var isListing = deal.side === 'Seller' || deal.side === 'Landlord';
   var dual = deal.represent_both === 'Yes';
+  if (isListing && dual && (deal.dual_comm_amt || deal.dual_comm_pct)) {
+    total = deal.dual_comm_amt ? Number(deal.dual_comm_amt) : price * Number(deal.dual_comm_pct) / 100;
+    return Math.round(total * 100) / 100;
+  }
   if (isListing || dual) total += deal.listing_comm_amt ? Number(deal.listing_comm_amt) : price * Number(deal.listing_comm_pct || 0) / 100;
   if (!isListing || dual) total += deal.sale_comm_amt ? Number(deal.sale_comm_amt) : price * Number(deal.sale_comm_pct || 0) / 100;
   return Math.round(total * 100) / 100;
@@ -1105,9 +1207,33 @@ function buildSkySlopePayload_(d) {
   if (d.other_attorney_name) attorneys.push(Object.assign(splitName(d.other_attorney_name), { company: d.other_attorney_firm, phone: d.other_attorney_phone, email: d.other_attorney_email, represents: 'other side' }));
   var lo = splitName(d.loan_officer);
 
+  var snapshot = {};
+  FIELDS.forEach(function (f) { if (f.sides.indexOf(d.side) >= 0 && d[f.key] !== '' && d[f.key] != null) snapshot[f.key] = d[f.key]; });
+  var yb = Number(d.year_built || 0);
   return {
     deal_id: d.deal_id,
     side: d.side,
+    status: d.status,
+    stage: (dealStage_(d) || 0) >= STATUS_RANK['Under Contract'] ? 'contract' : 'pre-contract',
+    represented: UNREPRESENTED.indexOf(d.client_relationship || '') < 0,
+    client_relationship: d.client_relationship || '',
+    dual_agency: d.represent_both === 'Yes',
+    agency_disclosure: {
+      role_box: ({ Seller: "Seller's agent", Landlord: "Landlord's agent",
+        Buyer: d.client_relationship === REL_BUYER_UNREP ? "Buyer's broker agent" : "Buyer's agent",
+        Tenant: d.client_relationship === REL_TENANT_UNREP ? "Tenant's broker agent" : "Tenant's agent" })[d.side],
+      dual_agent: true,
+      advance_informed_consent: true
+    },
+    lead_paint_required: (d.side === 'Seller' || d.side === 'Landlord') ? (!yb || yb < 1978) : null,
+    agent: { name: d.agent_name, email: d.agent_email, skyslope_name: d.skyslope_owner, office: d.office, co_agent: d.co_agent || '', co_agent_split_pct: d.co_agent_split || '' },
+    listing: (d.side === 'Seller' || d.side === 'Landlord') ? {
+      list_price: d.list_price, start_date: slash_(d.listing_date), expiration_date: slash_(d.listing_expiration),
+      coming_soon: d.coming_soon, coming_soon_date: slash_(d.coming_soon_date), active_date: slash_(d.active_date),
+      dual_agency_commission_pct: d.dual_comm_pct, dual_agency_commission_flat: d.dual_comm_amt,
+      commission_pct: d.listing_comm_pct, commission_flat: d.listing_comm_amt, cooperating_commission_pct: d.sale_comm_pct, cooperating_commission_flat: d.sale_comm_amt
+    } : null,
+    deal: snapshot,
     file_owner: d.skyslope_owner,
     forms_create: {
       url: 'https://forms.skyslope.com/create?representationType=' + ({ Seller: 'Seller', Buyer: 'Buyer', Tenant: 'tenant', Landlord: 'landlord' })[d.side],
