@@ -96,6 +96,43 @@
   .doc { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
   .doc a { color: var(--accent); font-weight: 600; text-decoration: none; word-break: break-word; }
 
+  /* MLS listing tab */
+  .mx-top { display: grid; grid-template-columns: 1fr auto; gap: 10px 14px; align-items: end; margin-bottom: 12px; }
+  .mx-prog { height: 6px; background: #e5e7eb; border-radius: 99px; overflow: hidden; margin: 4px 0 4px; }
+  .mx-prog > i { display: block; height: 100%; background: var(--seller); width: 0; transition: width .2s; }
+  .mx-nav { display: flex; gap: 6px; overflow-x: auto; padding: 6px 0 10px; position: sticky; top: 52px; background: #fff; z-index: 4; }
+  .mx-nav a { flex: none; font-size: 12px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink); text-decoration: none; background: #fff; }
+  .mx-nav a.ok { color: var(--ok); border-color: #8fd9b6; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { position: relative; margin: 0; font-weight: 400; }
+  .chip input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; width: 100%; height: 100%; }
+  .chip span { display: inline-block; padding: 6px 11px; border-radius: 999px; border: 1px solid #d1d5db; background: #f9fafb; font-size: 13px; color: var(--ink); user-select: none; }
+  .chip input:checked + span { background: var(--seller); border-color: var(--seller); color: #fff; }
+  .chip input:focus-visible + span { outline: 2px solid #bfdbfe; }
+  .opt-filter { margin-bottom: 6px; }
+  .mx-err { color: var(--bad); font-size: 12px; margin-top: 3px; }
+  .mx-field.flash { animation: mxflash 1.6s; border-radius: 8px; }
+  @keyframes mxflash { 0%, 60% { box-shadow: 0 0 0 4px #f5c26b; } 100% { box-shadow: none; } }
+  .rep { display: grid; gap: 10px; margin-bottom: 8px; }
+  .rep-item { background: #f9fafb; border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+  .rep-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .icon-btn { width: 34px; height: 34px; padding: 0; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; font-size: 16px; line-height: 1; }
+  .icon-btn:disabled { opacity: .35; cursor: default; }
+  .icon-btn.danger { color: var(--bad); }
+  .drop { position: relative; display: block; border: 2px dashed #d1d5db; border-radius: 12px; padding: 18px; text-align: center; color: var(--muted); font-weight: 500; margin: 6px 0 10px; }
+  .drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .photos { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 10px; }
+  .photo { display: grid; grid-template-columns: 110px 1fr; gap: 10px; align-items: start; }
+  .thumb { position: relative; aspect-ratio: 4 / 3; background: #f3f4f6; border-radius: 8px; overflow: hidden; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb b { position: absolute; left: 5px; top: 5px; background: rgba(0,0,0,.65); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 6px; }
+  .mx-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin-top: 8px; }
+  .mx-issues { border-radius: 10px; padding: 10px 14px; margin: 10px 0; font-size: 14px; }
+  .mx-issues.bad { background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; }
+  .mx-issues.warn { background: #fff7e6; border: 1px solid #f5c26b; color: #7a4b00; }
+  .mx-issues ul { margin: 6px 0 0; padding-left: 18px; }
+  .mx-issues a { color: inherit; }
+
   /* Toast */
   #toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); background: #111827; color: #fff; padding: 11px 16px; border-radius: 10px; font-size: 14px; max-width: calc(100% - 32px); z-index: 50; box-shadow: 0 8px 24px rgba(0,0,0,.2); }
   #toast.err { background: var(--bad); }
@@ -103,7 +140,8 @@
   @keyframes spin { to { transform: rotate(360deg); } }
 
   @media (max-width: 640px) {
-    .grid, .filters, .filters.admin, .sides, .docs-upload { grid-template-columns: 1fr; }
+    .grid, .filters, .filters.admin, .sides, .docs-upload, .mx-top { grid-template-columns: 1fr; }
+    .photo { grid-template-columns: 90px 1fr; }
     .stats { grid-template-columns: repeat(2, 1fr); }
     .ms { grid-template-columns: 28px 1fr; }
     .ms input[type=date] { grid-column: 2; }
@@ -178,6 +216,7 @@
       <button class="tab on" data-tab="details">Deal details</button>
       <button class="tab" data-tab="milestones">Milestones <span id="msCount"></span></button>
       <button class="tab" data-tab="docs">Documents</button>
+      <button class="tab hidden" data-tab="mls" id="mlsTabBtn">MLS listing <span id="mxTabCount"></span></button>
     </div>
 
     <form id="dealForm" novalidate>
@@ -203,6 +242,47 @@
             <button class="btn primary" type="button" id="uploadBtn">Upload</button>
           </div>
           <div id="docList"></div>
+        </div>
+      </div>
+
+      <div data-pane="mls" class="card hidden" id="mlsPane">
+        <div class="mx-top">
+          <div>
+            <label for="mxType" class="req">Property type (as in Matrix)</label>
+            <select id="mxType"></select>
+            <span class="help" id="mxTypeHelp">The same list as the + button in Matrix Listing Manager. The form below matches OneKey's input sheet for that type.</span>
+          </div>
+          <div id="mxStatus" style="text-align:right"></div>
+        </div>
+        <div id="mxBody" class="hidden">
+          <div class="mx-prog"><i id="mxBar"></i></div>
+          <p class="muted" id="mxProgText" style="margin:0 0 4px;font-size:13px"></p>
+          <nav class="mx-nav" id="mxNav"></nav>
+          <div id="mxForm"></div>
+
+          <fieldset id="mxMedia">
+            <legend>Photos</legend>
+            <p class="muted" style="margin:0;font-size:13px">Photo #1 is the primary photo in Matrix. Use the arrows to set the order; captions are optional.</p>
+            <div id="mxMediaLocked" class="muted hidden" style="margin:8px 0">Submit the deal first, then add photos and documents here.</div>
+            <div id="mxMediaArea">
+              <label class="drop" id="mxPhotoDrop"><input type="file" id="mxPhotoInput" accept="image/*" multiple><span>Tap to add photos (or drop them here)</span></label>
+              <ol class="photos" id="mxPhotos"></ol>
+              <legend style="margin-top:6px">Documents for the MLS</legend>
+              <div class="docs-upload">
+                <div><label for="mxDocCat">Document type</label><select id="mxDocCat"></select></div>
+                <div><label for="mxDocInput">File (max 20 MB)</label><input type="file" id="mxDocInput" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"></div>
+                <span class="muted" style="font-size:12px;align-self:center">Uploads start as soon as you pick a file.</span>
+              </div>
+              <div id="mxDocs"></div>
+            </div>
+          </fieldset>
+
+          <div id="mxIssues"></div>
+          <div class="mx-actions">
+            <button class="btn" type="button" id="mxPdfBtn">Download PDF</button>
+            <button class="btn primary" type="button" id="mxSendBtn">Send to Matrix</button>
+          </div>
+          <p class="muted" style="font-size:12px;text-align:right;margin:6px 0 0">Send to Matrix enters the listing in Matrix as <b>Incomplete</b> for review. It is never submitted to the MLS automatically.</p>
         </div>
       </div>
 
@@ -357,7 +437,8 @@
       return '<div class="card deal" data-id="' + esc(d.deal_id) + '" tabindex="0">' +
         '<div><span class="badge b-' + esc(d.side) + '">' + esc(d.side) + '</span> <span class="addr">' + esc(d.address) + '</span>' +
         '<div class="meta">' + esc(d.client_name) + (d.city ? ' · ' + esc(d.city) : '') + (USER.isAdmin ? ' · ' + esc(d.agent_name || d.agent_email) : '') + ' · ' + esc(d.deal_id) + '</div></div>' +
-        '<div style="text-align:right"><span class="status s-' + esc(String(d.status).split(' ')[0]) + '">' + esc(d.status) + '</span><div style="margin-top:6px">' + skyChip(d.skyslope_status) + '</div></div>' +
+        '<div style="text-align:right"><span class="status s-' + esc(String(d.status).split(' ')[0]) + '">' + esc(d.status) + '</span><div style="margin-top:6px">' + skyChip(d.skyslope_status) + '</div>' +
+        (d.matrix_status && d.matrix_status !== 'Draft' ? '<div style="margin-top:4px"><span class="sky ' + (/queued/i.test(d.matrix_status) ? 'wait' : /entered|active|live/i.test(d.matrix_status) ? 'ok' : 'err') + '">Matrix: ' + esc(d.matrix_status) + '</span></div>' : '') + '</div>' +
         '<div class="meta" style="grid-column:1/-1">Next: <b style="color:#374151">' + esc(d.next_milestone || '') + '</b>' +
         (d.current_milestone_date ? ' · Last update ' + esc(d.current_milestone_date) : '') + (d.closing_date ? ' · Closing ' + esc(d.closing_date) : '') + '</div>' +
         '<div class="bar"><i style="width:' + Math.round(done / total * 100) + '%"></i></div></div>';
@@ -434,6 +515,8 @@
     $('docsLocked').classList.toggle('hidden', !!deal.deal_id);
     $('docsArea').classList.toggle('hidden', !deal.deal_id);
     renderDocs(deal.documents || []);
+
+    mxOpen(deal);
 
     setTab('details');
     show('editor');
@@ -559,6 +642,7 @@
   function setTab(name) {
     Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) { t.classList.toggle('on', t.getAttribute('data-tab') === name); });
     Array.prototype.forEach.call(document.querySelectorAll('[data-pane]'), function (p) { p.classList.toggle('hidden', p.getAttribute('data-pane') !== name); });
+    if (name === 'mls' && MX && mxSchema() && !MX.loading) mxRender();
   }
 
   $('dealForm').addEventListener('submit', function (ev) {
@@ -587,6 +671,14 @@
 
     var btn = $('saveBtn'); busy(btn, true, 'Saving…');
     call('saveDeal', TOKEN, { deal_id: CURRENT.deal_id || '', side: side, status: $('edStatus').value, fields: fields, milestones: milestones, agent_email: USER.isAdmin ? $('edAgent').value : '' })
+      .then(function (res) {
+        if (MX && MX.type && MX.dirty) {
+          return call('saveMatrixListing', TOKEN, res.deal_id, { type: MX.type, data: MX.data, media: mxMediaPayload() })
+            .then(function () { return res; })
+            .catch(function (e) { toast('Deal saved, but the MLS listing was not: ' + e.message, true); return res; });
+        }
+        return res;
+      })
       .then(function (res) {
         var msg = res.isNew ? 'Deal submitted (' + res.deal_id + '). Queued for SkySlope.' : 'Changes saved.';
         if (res.status && res.status !== $('edStatus').value) msg += ' Status moved to ' + res.status + '.';
@@ -643,6 +735,417 @@
       r.readAsDataURL(file);
     });
   }
+
+  // =====================================================================
+  // MLS LISTING (OneKey Matrix input sheet) — Seller and Landlord deals
+  // =====================================================================
+  var MX = null; // { type, data, media, status, notes, thumbs, local, dirty, my_mls_id }
+  var COMP_RE = /\b(commission|compensation|co-?broke|cobroke|bonus|buyer'?s? agent fee|\d+(\.\d+)?\s*%)/i;
+  // Deal fields that fill the matching Matrix field while it is still blank.
+  var MX_PREFILL = {
+    streetNumber: 'street_number', dirPrefix: 'direction', unitNumber: 'unit',
+    postOfficeTown: 'city', zip: 'zip', county: 'county', yearBuilt: 'year_built', listPrice: 'list_price',
+    leasePrice: 'list_price', listingContractDate: 'listing_date', expirationDate: 'listing_expiration',
+    securityDeposit: 'security_deposit', coListAgentName: 'co_agent'
+  };
+
+  // Matrix wants "Oak" in Street Name and "Lane" in Street Suffix; the deal has "Oak Lane" in one field.
+  var MX_SUFFIX = /^(.*\S)\s+(street|st|avenue|ave|road|rd|lane|ln|drive|dr|court|ct|place|pl|boulevard|blvd|way|terrace|ter|circle|cir|parkway|pkwy|highway|hwy|path|trail|trl|turnpike|tpke|loop|run|walk|row|square|sq|plaza|plz|crescent|cres|alley|aly|close|hollow|holw|knoll|lndg|landing|pass|point|pt|ridge|rdg|view|vw)\.?$/i;
+  function mxSplitStreet(name) { var m = MX_SUFFIX.exec(String(name || '').trim()); return m ? [m[1], m[2].charAt(0).toUpperCase() + m[2].slice(1).toLowerCase()] : [String(name || '').trim(), '']; }
+
+  function mxIsListingSide(side) { return CFG.matrix && CFG.matrix.listingSides.indexOf(side) >= 0; }
+  function mxSchema() { var t = mxTypeDef(MX && MX.type); return t && t.schema ? CFG.matrix.schemas[t.schema] : null; }
+  function mxTypeDef(id) { return (CFG.matrix ? CFG.matrix.types : []).filter(function (t) { return t.id === id; })[0] || null; }
+  function mxFields() { var s = mxSchema(); return s ? s.sections.reduce(function (a, x) { return a.concat(x.fields); }, []) : []; }
+  function mxField(id) { return mxFields().filter(function (f) { return f.id === id; })[0] || null; }
+  function mxEmpty(v) {
+    if (v == null) return true;
+    if (Array.isArray(v)) return !v.length || v.every(function (x) { return x && typeof x === 'object' && Object.keys(x).every(function (k) { return mxEmpty(x[k]); }); });
+    return String(v).trim() === '';
+  }
+  function mxTest(c) {
+    if (!c) return true;
+    var v = MX.data[c.field];
+    if ('equals' in c) return v === c.equals;
+    if ('in' in c) return c['in'].indexOf(v) >= 0;
+    if ('includes' in c) return Array.isArray(v) && v.indexOf(c.includes) >= 0;
+    return true;
+  }
+  function mxSectionOf(f) { return mxSchema().sections.filter(function (s) { return s.fields.indexOf(f) >= 0; })[0]; }
+  function mxVisible(f) {
+    if (f.title) return mxTest(f.showIf);
+    var s = mxSectionOf(f);
+    return mxTest(s && s.showIf) && mxTest(f.showIf);
+  }
+
+  /** Called from openEditor for every deal. */
+  function mxOpen(deal) {
+    var listing = mxIsListingSide(deal.side);
+    $('mlsTabBtn').classList.toggle('hidden', !listing);
+    MX = null;
+    if (!listing) return;
+    var types = CFG.matrix.types.filter(function (t) { return t.side === deal.side; });
+    $('mxType').innerHTML = '<option value="">— Choose —</option>' + types.map(function (t) {
+      return '<option value="' + esc(t.id) + '"' + (t.schema ? '' : ' disabled') + '>' + esc(t.name) + (t.schema ? '' : ' (input sheet needed)') + '</option>';
+    }).join('');
+    $('mxDocCat').innerHTML = CFG.matrix.docTypes.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('');
+    MX = { type: '', data: {}, media: [], status: '', notes: '', thumbs: {}, local: {}, dirty: false, loading: !!deal.deal_id };
+    var ready = types.filter(function (t) { return t.schema; });
+    if (ready.length === 1) MX.type = ready[0].id; // Landlord: Rental is the only option today
+    if (deal.deal_id) {
+      $('mxForm').innerHTML = '<p class="muted"><span class="spinner"></span>Loading MLS listing…</p>';
+      call('getMatrixListing', TOKEN, deal.deal_id).then(function (r) {
+        if (!MX || CURRENT !== deal) return;
+        MX.loading = false;
+        if (r.type) MX.type = r.type;
+        MX.data = r.data || {}; MX.media = r.media || []; MX.status = r.matrix_status; MX.notes = r.matrix_notes; MX.my_mls_id = r.my_mls_id;
+        mxRender();
+        if (MX.media.some(function (m) { return m.kind === 'photo'; })) {
+          call('matrixThumbs', TOKEN, deal.deal_id).then(function (t) { if (MX && CURRENT === deal) { MX.thumbs = t || {}; mxRenderPhotos(); } }).catch(function () {});
+        }
+      }).catch(function (e) { if (MX) { MX.loading = false; mxRender(); } toast(e.message, true); });
+    }
+    mxRender();
+  }
+
+  function mxPrefill() {
+    if (!MX || !mxSchema()) return;
+    var changed = false;
+    mxFields().forEach(function (f) {
+      if (!mxEmpty(MX.data[f.id])) return;
+      var v = '';
+      if (MX_PREFILL[f.id]) v = fieldVal(MX_PREFILL[f.id]);
+      if (f.id === 'streetName') v = mxSplitStreet(fieldVal('street_name'))[0];
+      if (f.id === 'streetSuffix') v = mxSplitStreet(fieldVal('street_name'))[1];
+      if (f.id === 'state') v = fieldVal('state') === 'New York' || !fieldVal('state') ? 'NY' : fieldVal('state');
+      if (f.id === 'ownersName') {
+        var c1 = fieldVal('client_company') || [fieldVal('client_first'), fieldVal('client_last')].filter(Boolean).join(' ');
+        var c2 = [fieldVal('client2_first'), fieldVal('client2_last')].filter(Boolean).join(' ');
+        v = [c1, c2].filter(Boolean).join(' & ');
+      }
+      if (f.id === 'listAgentName') v = (CURRENT && CURRENT.agent_name) || (!USER.isAdmin ? USER.name : '');
+      if (f.id === 'listAgentId' && MX.my_mls_id) v = MX.my_mls_id;
+      if (f.type === 'radio' && v && f.options.indexOf(v) < 0) v = '';
+      if (v) { MX.data[f.id] = v; changed = true; }
+    });
+    if (changed) MX.dirty = true;
+  }
+
+  // ---------- rendering ----------
+  function mxRender() {
+    if (!MX) return;
+    $('mxType').value = MX.type || '';
+    $('mxType').disabled = !!MX.loading;
+    mxRenderStatus();
+    var schema = mxSchema();
+    $('mxBody').classList.toggle('hidden', !schema || MX.loading);
+    if (!schema) { $('mxTabCount').textContent = ''; return; }
+    mxPrefill();
+    $('mxNav').style.top = (document.querySelector('header.top').offsetHeight || 52) + 'px';
+    $('mxForm').innerHTML = schema.sections.map(function (sec, i) {
+      return '<fieldset id="mxsec-' + i + '"' + (mxVisible(sec) ? '' : ' class="hidden"') + '><legend>' + esc(sec.title) + '</legend><div class="grid">' +
+        sec.fields.map(mxFieldHtml).join('') + '</div></fieldset>';
+    }).join('');
+    Array.prototype.forEach.call(document.querySelectorAll('#mxForm [data-repeat]'), function (el) { mxRenderRepeat(el.getAttribute('data-repeat')); });
+    var locked = !(CURRENT && CURRENT.deal_id);
+    $('mxMediaLocked').classList.toggle('hidden', !locked);
+    $('mxMediaArea').classList.toggle('hidden', locked);
+    $('mxIssues').innerHTML = '';
+    mxRenderPhotos(); mxRenderDocs(); mxUpdate();
+  }
+
+  function mxRenderStatus() {
+    var st = MX && MX.status;
+    var cls = !st || st === 'Draft' ? '' : /queued/i.test(st) ? 'wait' : /entered|active|live/i.test(st) ? 'ok' : 'err';
+    $('mxStatus').innerHTML = st ? '<span class="sky ' + cls + '">Matrix: ' + esc(st) + '</span>' + (MX.notes ? '<div class="help" style="max-width:260px">' + esc(MX.notes) + '</div>' : '') : '';
+  }
+
+  function mxFieldHtml(f) {
+    var v = MX.data[f.id], id = 'mx_' + f.id;
+    var lab = '<label for="' + id + '" class="' + (f.req ? 'req' : '') + '">' + esc(f.label) + '</label>';
+    var help = f.help ? '<span class="help">' + esc(f.help) + '</span>' : '';
+    var input;
+    if (f.type === 'textarea') {
+      input = '<textarea id="' + id + '" data-mx="' + f.id + '" rows="' + (f.rows || 3) + '">' + esc(v || '') + '</textarea>';
+    } else if (f.type === 'radio' || f.type === 'yesno') {
+      var opts = f.type === 'yesno' ? ['Yes', 'No'] : f.options;
+      input = '<div class="chips" role="radiogroup" id="' + id + '">' + opts.map(function (o) {
+        return '<label class="chip"><input type="radio" name="' + id + '" data-mx="' + f.id + '" value="' + esc(o) + '"' + (v === o ? ' checked' : '') + '><span>' + esc(o) + '</span></label>';
+      }).join('') + '</div>';
+    } else if (f.type === 'checks') {
+      var sel = Array.isArray(v) ? v : [];
+      input = (f.options.length > 14 ? '<input type="search" class="opt-filter" data-mxfilter="' + f.id + '" placeholder="Filter ' + f.options.length + ' options…">' : '') +
+        '<div class="chips" id="' + id + '">' + f.options.map(function (o) {
+          return '<label class="chip"><input type="checkbox" data-mx="' + f.id + '" value="' + esc(o) + '"' + (sel.indexOf(o) >= 0 ? ' checked' : '') + '><span>' + esc(o) + '</span></label>';
+        }).join('') + '</div><span class="help" data-mxcount="' + f.id + '">' + (sel.length ? sel.length + ' selected' : '') + '</span>';
+    } else if (f.type === 'repeat') {
+      input = '<div class="rep" data-repeat="' + f.id + '"></div><button type="button" class="btn" data-mxadd="' + f.id + '">+ ' + esc(f.addLabel || 'Add') + '</button>';
+    } else {
+      var t = { number: 'text', money: 'text', date: 'date', phone: 'tel', url: 'url' }[f.type] || 'text';
+      var mode = f.type === 'money' || f.type === 'number' ? ' inputmode="decimal"' : '';
+      var ph = f.type === 'money' ? ' placeholder="$"' : f.suffix ? ' placeholder="' + esc(f.suffix) + '"' : '';
+      input = '<input id="' + id + '" type="' + t + '" data-mx="' + f.id + '"' + mode + ph + ' value="' + esc(v == null ? '' : v) + '">';
+    }
+    var wide = f.wide || ['textarea', 'checks', 'repeat', 'radio'].indexOf(f.type) >= 0 ? ' wide' : '';
+    return '<div class="mx-field' + wide + (mxVisible(f) ? '' : ' hidden') + '" data-mxfield="' + f.id + '">' + lab + help + input + '<div class="mx-err" data-mxerr="' + f.id + '"></div></div>';
+  }
+
+  function mxItemControl(f, sub, row, i) {
+    var v = row[sub.id], a = 'data-rep="' + f.id + '" data-i="' + i + '" data-k="' + sub.id + '"';
+    if (sub.type === 'select' || sub.type === 'yesno') {
+      return '<select ' + a + '><option value="">—</option>' + (sub.type === 'yesno' ? ['Yes', 'No'] : sub.options).map(function (o) {
+        return '<option' + (v === o ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>';
+    }
+    if (sub.type === 'textarea') return '<textarea ' + a + ' rows="2">' + esc(v || '') + '</textarea>';
+    if (sub.type === 'checks') {
+      return '<div class="chips">' + sub.options.map(function (o) {
+        return '<label class="chip"><input type="checkbox" ' + a + ' value="' + esc(o) + '"' + ((v || []).indexOf(o) >= 0 ? ' checked' : '') + '><span>' + esc(o) + '</span></label>';
+      }).join('') + '</div>';
+    }
+    var t = sub.type === 'date' ? 'date' : 'text';
+    return '<input type="' + t + '" ' + a + (sub.type === 'money' || sub.type === 'number' ? ' inputmode="decimal"' : '') + (sub.type === 'money' ? ' placeholder="$"' : '') + ' value="' + esc(v == null ? '' : v) + '">';
+  }
+
+  function mxRenderRepeat(id) {
+    var f = mxField(id), rows = MX.data[id] || [], name = esc(f.itemLabel || 'Item');
+    document.querySelector('[data-repeat="' + id + '"]').innerHTML = rows.map(function (row, i) {
+      return '<div class="rep-item"><div class="rep-head"><b>' + name + ' ' + (i + 1) + '</b>' +
+        '<button type="button" class="icon-btn danger" data-mxdel="' + id + '" data-i="' + i + '" aria-label="Remove ' + name + ' ' + (i + 1) + '">×</button></div>' +
+        '<div class="grid">' + f.item.map(function (sub) {
+          return '<div class="' + (sub.wide || sub.type === 'checks' || sub.type === 'textarea' ? 'wide' : '') + '"><label>' + esc(sub.label) + '</label>' + mxItemControl(f, sub, row, i) + '</div>';
+        }).join('') + '</div></div>';
+    }).join('') || '<p class="muted" style="margin:0">None added yet.</p>';
+    var btn = document.querySelector('[data-mxadd="' + id + '"]');
+    if (btn) btn.classList.toggle('hidden', f.max != null && rows.length >= f.max);
+  }
+
+  function mxUpdate() {
+    var schema = mxSchema(); if (!schema) return;
+    schema.sections.forEach(function (sec, i) { var el = $('mxsec-' + i); if (el) el.classList.toggle('hidden', !mxVisible(sec)); });
+    mxFields().forEach(function (f) { var el = document.querySelector('[data-mxfield="' + f.id + '"]'); if (el) el.classList.toggle('hidden', !mxVisible(f)); });
+    var reqs = mxFields().filter(function (f) { return f.req && mxVisible(f); });
+    var done = reqs.filter(function (f) { return !mxEmpty(MX.data[f.id]); }).length;
+    var photos = MX.media.filter(function (m) { return m.kind === 'photo'; }).length;
+    $('mxBar').style.width = (reqs.length ? Math.round(done / reqs.length * 100) : 100) + '%';
+    $('mxProgText').textContent = done + ' of ' + reqs.length + ' required fields · ' + photos + ' photo' + (photos === 1 ? '' : 's') + ' · ' +
+      MX.media.filter(function (m) { return m.kind === 'doc'; }).length + ' document(s)' + (MX.dirty ? ' · unsaved changes' : '');
+    $('mxTabCount').textContent = reqs.length ? '(' + Math.round(done / reqs.length * 100) + '%)' : '';
+    $('mxNav').innerHTML = schema.sections.map(function (sec, i) {
+      if (!mxVisible(sec)) return '';
+      var ok = sec.fields.filter(function (f) { return f.req && mxVisible(f); }).every(function (f) { return !mxEmpty(MX.data[f.id]); });
+      return '<a href="#mxsec-' + i + '" class="' + (ok ? 'ok' : '') + '">' + (ok ? '✓ ' : '') + esc(sec.title) + '</a>';
+    }).join('') + '<a href="#mxMedia">Photos &amp; docs</a>';
+  }
+
+  // ---------- form events ----------
+  $('mxType').addEventListener('change', function () {
+    if (MX.type && !mxEmpty(MX.data) && Object.keys(MX.data).length > 6 &&
+        !confirm('Change the property type? Fields that the new type doesn\'t have will be dropped when you save.')) { $('mxType').value = MX.type; return; }
+    MX.type = $('mxType').value; MX.dirty = true; mxRender();
+  });
+
+  $('mxForm').addEventListener('input', mxOnInput);
+  $('mxForm').addEventListener('change', mxOnInput);
+  function mxOnInput(ev) {
+    var t = ev.target;
+    if (t.getAttribute('data-mxfilter')) {
+      var q = t.value.toLowerCase();
+      Array.prototype.forEach.call(t.parentNode.querySelectorAll('.chip'), function (c) { c.classList.toggle('hidden', !!q && c.textContent.toLowerCase().indexOf(q) < 0); });
+      return;
+    }
+    var rep = t.getAttribute('data-rep');
+    if (rep) {
+      var row = MX.data[rep][+t.getAttribute('data-i')], k = t.getAttribute('data-k');
+      row[k] = t.type === 'checkbox'
+        ? Array.prototype.map.call(document.querySelectorAll('[data-rep="' + rep + '"][data-i="' + t.getAttribute('data-i') + '"][data-k="' + k + '"]:checked'), function (x) { return x.value; })
+        : t.value;
+      MX.dirty = true; return;
+    }
+    var id = t.getAttribute('data-mx'); if (!id || t.type === 'radio') return;
+    if (t.type === 'checkbox') {
+      MX.data[id] = Array.prototype.map.call(document.querySelectorAll('[data-mx="' + id + '"]:checked'), function (x) { return x.value; });
+      var c = document.querySelector('[data-mxcount="' + id + '"]'); if (c) c.textContent = MX.data[id].length ? MX.data[id].length + ' selected' : '';
+    } else MX.data[id] = t.value;
+    var e = document.querySelector('[data-mxerr="' + id + '"]'); if (e) e.textContent = '';
+    MX.dirty = true; mxUpdate();
+  }
+
+  $('mxForm').addEventListener('click', function (ev) {
+    var add = ev.target.closest('[data-mxadd]');
+    if (add) { var id = add.getAttribute('data-mxadd'); (MX.data[id] = MX.data[id] || []).push({}); MX.dirty = true; mxRenderRepeat(id); return; }
+    var del = ev.target.closest('[data-mxdel]');
+    if (del) { MX.data[del.getAttribute('data-mxdel')].splice(+del.getAttribute('data-i'), 1); MX.dirty = true; mxRenderRepeat(del.getAttribute('data-mxdel')); mxUpdate(); return; }
+    var t = ev.target;
+    if (t.type === 'radio' && t.getAttribute('data-mx')) { // tap a chosen chip again to clear it
+      var f = t.getAttribute('data-mx');
+      if (MX.data[f] === t.value) { t.checked = false; delete MX.data[f]; } else MX.data[f] = t.value;
+      var e = document.querySelector('[data-mxerr="' + f + '"]'); if (e) e.textContent = '';
+      MX.dirty = true; mxUpdate();
+    }
+  });
+
+  $('mxNav').addEventListener('click', function (ev) {
+    var a = ev.target.closest('a'); if (!a) return;
+    ev.preventDefault();
+    var el = document.querySelector(a.getAttribute('href')); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  // ---------- photos & documents ----------
+  function mxMediaPayload() { return MX.media.map(function (m) { return { id: m.id, caption: m.caption, category: m.category }; }); }
+
+  function mxRenderPhotos() {
+    var photos = MX.media.filter(function (m) { return m.kind === 'photo'; });
+    $('mxPhotos').innerHTML = photos.map(function (p, i) {
+      var src = MX.local[p.id] || MX.thumbs[p.id] || '';
+      return '<li class="photo"><div class="thumb">' + (src ? '<img alt="" src="' + esc(src) + '">' : '') + '<b>' + (i + 1) + (i === 0 ? ' · Primary' : '') + '</b></div>' +
+        '<div><input type="text" data-cap="' + esc(p.id) + '" value="' + esc(p.caption) + '" placeholder="Caption (optional)">' +
+        '<div class="muted" style="font-size:12px;margin:4px 0">' + esc(p.name) + (p.size_kb ? ' · ' + (p.size_kb / 1024).toFixed(1) + ' MB' : '') + '</div>' +
+        '<div class="row" style="gap:6px"><button type="button" class="icon-btn" data-pmove="' + esc(p.id) + '" data-d="-1"' + (i === 0 ? ' disabled' : '') + ' aria-label="Move up">↑</button>' +
+        '<button type="button" class="icon-btn" data-pmove="' + esc(p.id) + '" data-d="1"' + (i === photos.length - 1 ? ' disabled' : '') + ' aria-label="Move down">↓</button>' +
+        (i ? '<button type="button" class="btn" style="padding:6px 10px" data-pfirst="' + esc(p.id) + '">Make primary</button>' : '') +
+        '<button type="button" class="icon-btn danger" data-pdel="' + esc(p.id) + '" aria-label="Remove photo">×</button></div></div></li>';
+    }).join('');
+    if (mxSchema()) mxUpdate();
+  }
+
+  function mxRenderDocs() {
+    var docs = MX.media.filter(function (m) { return m.kind === 'doc'; });
+    $('mxDocs').innerHTML = docs.length ? docs.map(function (d) {
+      return '<div class="doc"><div><b>' + esc(d.name) + '</b><div class="muted" style="font-size:12px">' + (d.size_kb ? (d.size_kb / 1024).toFixed(1) + ' MB' : '') + '</div></div>' +
+        '<div class="row" style="gap:6px;flex-wrap:nowrap"><select data-dcat="' + esc(d.id) + '" style="width:auto">' + CFG.matrix.docTypes.map(function (c) {
+          return '<option' + (c === d.category ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select>' +
+        '<button type="button" class="icon-btn danger" data-pdel="' + esc(d.id) + '" aria-label="Remove document">×</button></div></div>';
+    }).join('') : '<p class="muted" style="margin:0">No documents yet.</p>';
+  }
+
+  function mxMovePhoto(id, to) {
+    var photos = MX.media.filter(function (m) { return m.kind === 'photo'; });
+    var from = photos.map(function (m) { return m.id; }).indexOf(id);
+    if (from < 0 || to < 0 || to >= photos.length) return;
+    var p = photos.splice(from, 1)[0]; photos.splice(to, 0, p);
+    MX.media = photos.concat(MX.media.filter(function (m) { return m.kind !== 'photo'; }));
+    MX.dirty = true; mxRenderPhotos();
+  }
+
+  $('mlsPane').addEventListener('click', function (ev) {
+    var b = ev.target.closest('button'); if (!b) return;
+    if (b.hasAttribute('data-pmove')) { var id = b.getAttribute('data-pmove'); var ph = MX.media.filter(function (m) { return m.kind === 'photo'; }).map(function (m) { return m.id; }); mxMovePhoto(id, ph.indexOf(id) + (+b.getAttribute('data-d'))); }
+    if (b.hasAttribute('data-pfirst')) mxMovePhoto(b.getAttribute('data-pfirst'), 0);
+    if (b.hasAttribute('data-pdel')) {
+      var fid = b.getAttribute('data-pdel');
+      if (!confirm('Remove this file from the listing?')) return;
+      busy(b, true, '');
+      mxSaveIfDirty().then(function () { return call('deleteMatrixFile', TOKEN, CURRENT.deal_id, fid); })
+        .then(function (media) { MX.media = media; mxRenderPhotos(); mxRenderDocs(); toast('Removed.'); })
+        .catch(function (e) { toast(e.message, true); busy(b, false); });
+    }
+  });
+  $('mlsPane').addEventListener('input', function (ev) {
+    var id = ev.target.getAttribute('data-cap');
+    if (id) { MX.media.forEach(function (m) { if (m.id === id) m.caption = ev.target.value; }); MX.dirty = true; }
+  });
+  $('mlsPane').addEventListener('change', function (ev) {
+    var id = ev.target.getAttribute('data-dcat');
+    if (id) { MX.media.forEach(function (m) { if (m.id === id) m.category = ev.target.value; }); MX.dirty = true; }
+  });
+
+  function mxUpload(files, kind) {
+    files = Array.prototype.slice.call(files || []);
+    if (!files.length) return;
+    if (!CURRENT || !CURRENT.deal_id) { toast('Submit the deal first, then add photos and documents.', true); return; }
+    if (kind === 'photo') files = files.filter(function (f) { return /^image\//.test(f.type); });
+    var big = files.filter(function (f) { return f.size > CFG.maxUploadBytes; });
+    if (big.length) { toast(big[0].name + ' is over 20 MB.', true); return; }
+    var cat = $('mxDocCat').value, n = 0;
+    toast('Uploading ' + files.length + ' file' + (files.length > 1 ? 's' : '') + '…');
+    mxSaveIfDirty().then(function () {
+      return files.reduce(function (p, file) {
+        return p.then(function () {
+          return readB64(file).then(function (data) {
+            return call('uploadMatrixFile', TOKEN, CURRENT.deal_id, { name: file.name, mimeType: file.type, data: data, kind: kind, category: cat });
+          }).then(function (media) {
+            var known = {}; MX.media.forEach(function (m) { known[m.id] = 1; });
+            media.forEach(function (m) { if (!known[m.id] && kind === 'photo') MX.local[m.id] = URL.createObjectURL(file); });
+            // keep any captions/order typed but not yet saved
+            var local = {}; MX.media.forEach(function (m) { local[m.id] = m; });
+            MX.media = media.map(function (m) { return local[m.id] ? Object.assign(m, { caption: local[m.id].caption, category: local[m.id].category || m.category }) : m; });
+            n++; toast('Uploaded ' + n + ' of ' + files.length + '…');
+            mxRenderPhotos(); mxRenderDocs();
+          });
+        });
+      }, Promise.resolve());
+    }).then(function () { toast(files.length + ' file' + (files.length > 1 ? 's' : '') + ' added to the listing.'); })
+      .catch(function (e) { toast(e.message, true); });
+  }
+  $('mxPhotoInput').addEventListener('change', function (ev) { mxUpload(ev.target.files, 'photo'); ev.target.value = ''; });
+  $('mxDocInput').addEventListener('change', function (ev) { mxUpload(ev.target.files, 'doc'); ev.target.value = ''; });
+  ['dragover', 'drop'].forEach(function (type) {
+    $('mxPhotoDrop').addEventListener(type, function (ev) { ev.preventDefault(); if (type === 'drop') mxUpload(ev.dataTransfer.files, 'photo'); });
+  });
+
+  // ---------- save / PDF / send ----------
+  function mxSaveIfDirty() {
+    if (!MX || !MX.dirty || !MX.type || !CURRENT || !CURRENT.deal_id) return Promise.resolve();
+    return call('saveMatrixListing', TOKEN, CURRENT.deal_id, { type: MX.type, data: MX.data, media: mxMediaPayload() })
+      .then(function (r) { MX.dirty = false; MX.status = r.matrix_status; MX.notes = r.matrix_notes; mxRenderStatus(); mxUpdate(); });
+  }
+
+  function mxCheck() {
+    var missing = [], warnings = [];
+    Array.prototype.forEach.call(document.querySelectorAll('#mxForm [data-mxerr]'), function (e) { e.textContent = ''; });
+    mxSchema().sections.forEach(function (sec) {
+      if (!mxVisible(sec)) return;
+      sec.fields.forEach(function (f) {
+        if (!mxVisible(f)) return;
+        var v = MX.data[f.id];
+        if (f.req && mxEmpty(v)) { missing.push({ sec: sec.title, f: f }); var e = document.querySelector('[data-mxerr="' + f.id + '"]'); if (e) e.textContent = 'Required'; }
+        if (/Remarks/.test(f.label) && v && COMP_RE.test(v)) warnings.push({ sec: sec.title, f: f, msg: 'looks like it mentions compensation, which is not allowed in MLS remarks' });
+      });
+    });
+    if (!MX.media.some(function (m) { return m.kind === 'photo'; })) warnings.push({ sec: 'Photos', f: null, msg: 'no photos yet' });
+    var item = function (x, msg) { return '<li>' + (x.f ? '<a href="#" data-goto="' + esc(x.f.id) + '">' + esc(x.sec) + ' → ' + esc(x.f.label) + '</a>' : esc(x.sec)) + (msg ? ': ' + esc(msg) : '') + '</li>'; };
+    var html = '';
+    if (missing.length) html += '<div class="mx-issues bad"><b>' + missing.length + ' required field' + (missing.length > 1 ? 's' : '') + ' still empty</b><ul>' +
+      missing.slice(0, 8).map(function (x) { return item(x); }).join('') + (missing.length > 8 ? '<li>…and ' + (missing.length - 8) + ' more (marked "Required" above)</li>' : '') + '</ul></div>';
+    if (warnings.length) html += '<div class="mx-issues warn"><b>Check these</b><ul>' + warnings.map(function (x) { return item(x, x.msg); }).join('') + '</ul></div>';
+    $('mxIssues').innerHTML = html;
+    return { missing: missing, warnings: warnings };
+  }
+  $('mxIssues').addEventListener('click', function (ev) {
+    var id = ev.target.getAttribute('data-goto'); if (!id) return;
+    ev.preventDefault();
+    var el = document.querySelector('[data-mxfield="' + id + '"]'); if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('flash'); setTimeout(function () { el.classList.remove('flash'); }, 1600);
+  });
+
+  $('mxPdfBtn').addEventListener('click', function () {
+    if (!CURRENT.deal_id) { toast('Submit the deal first.', true); return; }
+    mxCheck();
+    var btn = $('mxPdfBtn'); busy(btn, true, 'Making PDF…');
+    mxSaveIfDirty().then(function () { return call('matrixPdf', TOKEN, CURRENT.deal_id); }).then(function (r) {
+      var bin = atob(r.data), bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+      a.download = r.name; document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+      toast(r.missing ? 'PDF downloaded. ' + r.missing + ' required field(s) are still missing (marked in red).' : 'PDF downloaded.');
+    }).catch(function (e) { toast(e.message, true); }).then(function () { busy(btn, false); });
+  });
+
+  $('mxSendBtn').addEventListener('click', function () {
+    if (!CURRENT.deal_id) { toast('Submit the deal first.', true); return; }
+    var c = mxCheck();
+    if (c.missing.length) { toast('Fill in the ' + c.missing.length + ' required field(s) listed below first.', true); return; }
+    if (c.warnings.some(function (w) { return w.sec === 'Photos'; })) { toast('Add at least one photo first.', true); return; }
+    if (c.warnings.length && !confirm('Send anyway? ' + c.warnings.map(function (w) { return (w.f ? w.f.label : w.sec) + ' ' + w.msg; }).join('; '))) return;
+    var btn = $('mxSendBtn'); busy(btn, true, 'Sending…');
+    mxSaveIfDirty().then(function () { return call('sendToMatrix', TOKEN, CURRENT.deal_id); }).then(function (r) {
+      MX.status = r.matrix_status; MX.notes = r.matrix_notes; MX.media = r.media; mxRenderStatus(); mxRenderPhotos();
+      toast('Queued for Matrix. It will be entered as Incomplete for review.');
+      refreshListQuiet();
+    }).catch(function (e) { toast(e.message, true); }).then(function () { busy(btn, false); });
+  });
 })();
 </script>
 </body>

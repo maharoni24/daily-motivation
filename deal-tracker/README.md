@@ -55,6 +55,26 @@ Checking a milestone moves the status forward (never back):
 | Closing scheduled | Closing Set |
 | Closed / move-in | Sold |
 
+## MLS listing tab (Seller and Landlord deals)
+On a Seller or Landlord deal, the editor has a fourth tab, **MLS listing**. It mirrors OneKey MLS's Matrix input sheet for the property type the agent picks, the same list as the **+** button in Matrix Listing Manager.
+
+| Matrix + menu | Side | Ready |
+|---|---|---|
+| Residential, Residential - Coop, Residential - Condo, Land, Res Income - Multi 2-4 | Seller | Yes |
+| Rental | Landlord | Yes |
+| Commercial - Multi 5+, Commercial Sale, Business Opportunity | Seller | Needs OneKey's input sheet |
+| Commercial Lease | Landlord | Needs OneKey's input sheet |
+
+- **Prefilled from the deal:** address (street suffix split out the way Matrix wants it), zip, county, year built, list price or rent, listing and expiration dates, owner name(s), agent name, co-agent and security deposit. When agents fill in their own listing, their MLS ID (their sign-in PIN) becomes the List Agent ID. Prefill only fills blanks; it never overwrites.
+- **Required fields** match the starred fields on OneKey's sheet. Follow-up fields appear only when they apply (Garage Spaces after Garage = Yes; Rental's Short Term/Seasonal block only for that lease term). Remarks are checked for compensation wording.
+- **Photos and documents** go to Drive: **Deal Tracker MLS Media / <Deal ID> / Photos | Documents** in Mac's Drive. Agents set the photo order (photo 1 is primary) and captions.
+- **Saving the deal saves the MLS listing too.** It's stored in the **MLS Listings** tab, one row per deal.
+- **Download PDF:** a Matrix entry sheet in Matrix's field order, with missing required fields in red and the photo order. A copy is kept in the deal's Drive folder.
+- **Send to Matrix:** only once every required field and at least one photo are in. It renames the photos `01 - …`, `02 - …` in the agent's order, writes **Matrix Payload JSON**, and sets **Matrix Status = Queued**. The Matrix task (`MATRIX_TASK.md`) then enters the listing in Matrix in your Chrome and **saves it as Incomplete**. You or the agent review it and submit it in Matrix; nothing is submitted automatically.
+- Matrix statuses: Draft → Queued → Entered (Incomplete) → (submitted by you in Matrix). Needs Info / Needs Review come with a note. Editing after it's entered shows "Changed since sent"; Send to Matrix again queues an update.
+
+The field definitions are in `matrix/*.js`, shared with the standalone `matrix-listing-intake` app. After changing them, run `python3 build.py` to regenerate `MatrixSchemas.gs` and `DealTracker.gs`.
+
 ## Office Sheets rules (same as the daily inventory sync)
 - A deal already on either tab (MLS # or street number + street name) is **never duplicated**.
 - New rows go **inside the data block** of the agent's office tab, next to rows with the same status, so the TOTAL row still counts them. They are highlighted yellow for your review, with **Skyslope = "Needs To Be Added"**.
@@ -67,10 +87,10 @@ Checking a milestone moves the status forward (never back):
 ## Setup
 1. **Create a new Google Sheet** called "Deal Tracker". Keep it separate from Office Sheets, which holds passwords. Then go to **Extensions → Apps Script**.
 2. Paste in the files:
-   - Paste `Code.gs` over the default code.
-   - Add an HTML file named `Index` and paste `Index.html` into it.
+   - **One paste:** paste `DealTracker.gs` over the default code. It includes everything below.
+   - **Or file by file:** paste `Code.gs` over the default code, add script files `Matrix.gs` and `MatrixSchemas.gs`, and add an HTML file named `Index` with `Index.html`.
    - Turn on "Show appsscript.json" in Project Settings, then paste `appsscript.json`.
-3. **Run `setup`** and approve the permissions. That creates the tabs Deals, Agents, Milestone Log and Sync Log, and points at your Office Sheets.
+3. **Run `setup`** and approve the permissions. That creates the tabs Deals, Agents, Milestone Log, Sync Log, Documents and MLS Listings, and points at your Office Sheets. The MLS photo folder is created in your Drive the first time an agent uploads a photo.
 4. **Fill in the Agents tab**:
 
    | Name | Email | PIN | Role | Active | Office | SkySlope Name |
@@ -82,6 +102,9 @@ Checking a milestone moves the status forward (never back):
    - **Role** is Admin for you; you'll see every agent's deals.
 5. **Deploy → New deployment → Web app**, with *Execute as: Me* and *Who has access: Anyone*. Send agents the `/exec` link.
 6. **Create the SkySlope task** from the Claude desktop app using `SKYSLOPE_TASK.md`.
+7. **Create the Matrix task** the same way using `MATRIX_TASK.md`. First confirm with OneKey MLS that assisted entry in your own signed-in browser is allowed.
+
+**Already running the Deal Tracker?** Paste the new `DealTracker.gs` (or the four files), run `setup` once more to add the MLS Listings tab, then use **Deploy → Manage deployments → Edit → New version**. Agents keep the same link.
 
 After any code change: **Deploy → Manage deployments → Edit → New version**. The link stays the same.
 

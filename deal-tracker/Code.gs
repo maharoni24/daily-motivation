@@ -290,7 +290,8 @@ function doGet() {
 function getAppConfig() {
   return {
     appName: APP_NAME, sides: SIDES, statuses: STATUSES, offices: OFFICES, statusRank: STATUS_RANK, stageRules: STAGE_RULES,
-    fields: FIELDS, milestones: MILESTONES, roster: readSkySlopeRoster_(), maxUploadBytes: MAX_UPLOAD_BYTES
+    fields: FIELDS, milestones: MILESTONES, roster: readSkySlopeRoster_(), maxUploadBytes: MAX_UPLOAD_BYTES,
+    matrix: matrixConfig_()
   };
 }
 
@@ -305,6 +306,7 @@ function setup() {
   ensureSheet_(ss, SHEETS.MILESTONE_LOG, ['Timestamp', 'Deal ID', 'Side', 'Property', 'Agent Email', 'Milestone', 'Change', 'Milestone Date', 'Note']);
   ensureSheet_(ss, SHEETS.SYNC_LOG, ['Timestamp', 'Deal ID', 'Target', 'Result', 'Details']);
   ensureSheet_(ss, SHEETS.DOCS, DOC_HEADERS);
+  ensureSheet_(ss, MATRIX_SHEET, MATRIX_HEADERS);
   installDocumentTrigger_();
   agents.getRange('B:C').setNumberFormat('@');
   var props = PropertiesService.getScriptProperties();
@@ -557,6 +559,7 @@ function readSkySlopeRoster_() {
 
 function listDeals(token) {
   var user = requireSession_(token);
+  var mx = matrixStatuses_();
   return readDeals_().deals
     .filter(function (d) { return user.isAdmin || d.agent_email === user.email; })
     .map(function (d) {
@@ -567,7 +570,7 @@ function listDeals(token) {
         current_milestone_date: d.current_milestone_date, next_milestone: d.next_milestone,
         milestones_done: d.milestones_done, milestones_total: (MILESTONES[d.side] || []).length,
         closing_date: d.closing_date || '', updated_at: d.updated_at,
-        skyslope_status: d.skyslope_status, skyslope_file: d.skyslope_file
+        skyslope_status: d.skyslope_status, skyslope_file: d.skyslope_file, matrix_status: mx[d.deal_id] || ''
       };
     })
     .sort(function (a, b) { return String(b.updated_at).localeCompare(String(a.updated_at)); });
