@@ -90,20 +90,20 @@ Once a listing deal is saved and has an **MLS #**, the editor shows **Listing ch
 
 How a request moves:
 1. **Requested.** The request is saved in the **Listing Changes** tab with a ready-to-fill payload (office, agent, MLS #, owners, address, listing dates and the new values).
-2. **Form ready.** The SkySlope task (`SKYSLOPE_TASK.md`, part D) adds the OneKey form to the deal's SkySlope file, fills it in and prepares the signature request. It does **not** send it: the agent or you review it and press Send from the link shown on the deal.
+2. **Out for signature.** The SkySlope task (`SKYSLOPE_TASK.md`, part D) adds the OneKey form to the deal's SkySlope file, fills it in, checks it, and **sends it for signature automatically**. If a signer has no email or a field can't be filled, it doesn't send and marks the request Needs Info. The signature link shows on the deal.
 3. **Signed.** The SkySlope task sees the envelope is fully signed and queues the change for Matrix.
 4. **Changed in Matrix.** The Matrix task (`MATRIX_TASK.md`, part C) makes exactly that change on the live listing and submits it. This is the only time the Matrix task submits anything, because the owner signed for it.
 5. **Deal updated.** Within 5 minutes the Deal Tracker updates the deal's price, expiration or status. TOM is also written to the office inventory; other changes are left for you on the inventory sheet.
 
 Guard rails:
-- One open request per listing. The agent can withdraw a request until it's signed.
+- One open request per listing. The agent can withdraw a request until it's signed; if the form already went out, the SkySlope task voids that unsigned envelope.
 - A listing can only go TOM or be withdrawn while it's on the market, and only come back from TOM or Withdrawn.
 - Withdraw and Cancel require the agent to confirm that no negotiations are pending.
 - An extension is refused more than 30 days after expiration (OneKey's rule: enter it as a new listing instead).
 - **Withdrawn** is a new deal status. Like TOM and Cancelled, it isn't held to the stage requirements.
 
 **Before first use:**
-- Put your two **MLS office codes** in `OFFICE_MLS_CODES` at the top of `ListingChanges.gs`; they print on every form.
+- MLS office codes (Dix Hills BRMN17, Farmingdale BRMN13) are set in `OFFICE_MLS_CODES` at the top of `ListingChanges.gs` and print on every form.
 - Make sure the four OneKey forms are in your SkySlope forms library. The PDFs are in `forms/`.
 - The firm representative defaults to you. To change it, set Script Properties `FIRM_REP_NAME` and `FIRM_REP_EMAIL`.
 

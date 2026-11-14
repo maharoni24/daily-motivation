@@ -798,7 +798,7 @@
         '<span class="sky ' + esc(c.stage.tone) + '">' + esc(c.stage.label) + '</span></div>' +
         '<div class="chg-steps">' + steps.map(function (s) { return '<span class="' + (s[1] ? 'on' : '') + '">' + (s[1] ? '✓ ' : '') + esc(s[0]) + '</span>'; }).join('') + '</div>' +
         (c.signature_link && !c.matrix_status ? '<div style="margin-top:6px"><a href="' + esc(c.signature_link) + '" target="_blank" rel="noopener">Open the signature request in SkySlope</a>' +
-          (c.skyslope_status === 'Form Ready' ? ' <span class="muted" style="font-size:12px">· review it and press Send</span>' : '') + '</div>' : '') +
+          '</div>' : '') +
         (c.notes ? '<div class="muted" style="font-size:12px;margin-top:4px">' + esc(c.notes) + '</div>' : '') +
         (c.open && c.skyslope_status !== 'Signed' && !c.matrix_status ? '<div style="margin-top:6px"><button type="button" class="btn" data-chgwithdraw="' + esc(c.change_id) + '">Withdraw this request</button></div>' : '') +
         '</div>';
@@ -836,7 +836,7 @@
       (t.firmSigns ? ' and the firm representative' : t.ownerSigns ? ' and you' : 'you');
     $('chgForm').innerHTML = '<div class="card" style="margin-top:12px;border-color:#c4b5fd"><div class="row" style="justify-content:space-between"><b style="font-size:16px">' + esc(t.name) + '</b><button type="button" class="btn" id="chgCancelForm">Close</button></div>' +
       '<p class="muted" style="font-size:13px;margin:6px 0 12px">' + esc(t.help) + '</p><div class="grid">' + f.join('') + '</div>' +
-      '<p style="font-size:13px;margin:12px 0 0"><b>What happens next:</b> the OneKey <b>' + esc(t.form) + '</b> is filled in from this deal in SkySlope for ' + esc(signers) + ' to sign. ' +
+      '<p style="font-size:13px;margin:12px 0 0"><b>What happens next:</b> the OneKey <b>' + esc(t.form) + '</b> is filled in from this deal in SkySlope and sent automatically to ' + esc(signers) + ' to sign. ' +
       'Once it is signed, ' + esc(t.matrix.charAt(0).toLowerCase() + t.matrix.slice(1)) + ' in Matrix and the deal is updated. Nothing changes before the signature.</p>' +
       '<div class="mx-actions"><button type="button" class="btn primary" id="chgSubmit">Request ' + esc(t.name.toLowerCase()) + '</button></div></div>';
     $('chgForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -848,7 +848,7 @@
     if (ev.target.id === 'chgCancelForm') { $('chgForm').innerHTML = ''; CHG.type = ''; return; }
     var wd = ev.target.closest('[data-chgwithdraw]');
     if (wd) {
-      if (!confirm('Withdraw this request? If a signature request was already sent, void it in SkySlope.')) return;
+      if (!confirm('Withdraw this request? If the form was already sent, the unsigned signature request is voided in SkySlope.')) return;
       busy(wd, true, 'Withdrawing…');
       call('withdrawListingChange', TOKEN, CURRENT.deal_id, wd.getAttribute('data-chgwithdraw'))
         .then(function (list) { CHG.list = list; chgRenderList(); toast('Request withdrawn.'); refreshListQuiet(); })

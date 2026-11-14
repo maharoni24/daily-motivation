@@ -4,11 +4,11 @@
  * On a Seller or Landlord deal that is on the MLS, the agent (or Mac) requests a change from the
  * "Listing changes" tab. Each request moves through:
  *
- *   Requested ──SkySlope task──▶ Form Ready ──agent/Mac sends──▶ Out for Signature ──seller signs──▶ Signed
+ *   Requested ──SkySlope task fills + sends──▶ Out for Signature ──everyone signs──▶ Signed
  *      └─▶ Matrix Status = Queued ──Matrix task──▶ Updated in Matrix ──this script──▶ deal updated (Applied)
  *
  *   - The SkySlope task (SKYSLOPE_TASK.md, part D) adds the right OneKey form to the deal's SkySlope
- *     file, fills it from "Change Payload JSON", and prepares the signature request.
+ *     file, fills it from "Change Payload JSON", and sends it for signature automatically.
  *   - Once SkySlope shows the form fully signed, it sets SkySlope Status = Signed and Matrix Status = Queued.
  *   - The Matrix task (MATRIX_TASK.md, part C) makes the change on the live listing in Matrix.
  *   - processListingChanges_ (runs with the 5-minute document trigger) then updates the deal itself:
@@ -22,7 +22,7 @@ var CHANGE_HEADERS = ['Change ID', 'Deal ID', 'Requested At', 'Requested By', 'C
 
 /** Brokerage details printed on every OneKey form. Fill in the MLS office codes once. */
 var LISTING_OFFICE_NAME = 'Coldwell Banker American Homes';
-var OFFICE_MLS_CODES = { 'Dix Hills': '', 'Farmingdale': '' }; // e.g. { 'Dix Hills': 'CBAH01', ... }
+var OFFICE_MLS_CODES = { 'Dix Hills': 'BRMN17', 'Farmingdale': 'BRMN13' };
 
 var CHANGE_TYPES = [
   { id: 'price', name: 'Price change', form: 'Status Change Form', box: 'Price Change', matrix: 'Change the list price', ownerSigns: true,
@@ -66,6 +66,12 @@ function requestListingChange(token, dealId, input) {
   var open = readChanges_().filter(function (c) { return c.deal_id === deal.deal_id && isOpenChange_(c); });
   if (open.length) throw new Error('This listing already has an open change (' + open[0].type_name + ', ' + open[0].skyslope_status + '). Finish or withdraw that request first.');
 
+  if (type.ownerSigns) {
+    var owners = owners_(deal);
+    if (!owners.length) throw new Error('Add the seller\'s name and email on Deal details first (the form is sent to them to sign).');
+    var noEmail = owners.filter(function (o) { return !o.email; });
+    if (noEmail.length) throw new Error('Add an email for ' + noEmail.map(function (o) { return o.name; }).join(' and ') + ' on Deal details first (the form is sent to them to sign).');
+  }
   var d = validateChange_(type, deal, input.details || {});
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
@@ -92,9 +98,9 @@ function withdrawListingChange(token, dealId, changeId) {
   if (!c) throw new Error('Request not found.');
   if (['Signed'].indexOf(c.skyslope_status) >= 0 || c.matrix_status) throw new Error('The seller already signed this one. Ask Mac to stop it.');
   if (!isOpenChange_(c)) throw new Error('This request is already closed.');
-  setChangeCells_(changeId, { 'SkySlope Status': 'Withdrawn by agent',
-    'Notes': (c.notes ? c.notes + ' | ' : '') + 'Withdrawn ' + isoNow_().slice(0, 10) + ' by ' + ctx.user.email +
-      (c.signature_link ? '. Void the unsigned envelope in SkySlope.' : '') });
+  // If the form already went out, the SkySlope task voids that unsigned envelope on its next run.
+  setChangeCells_(changeId, { 'SkySlope Status': c.signature_link ? 'Withdrawn - void envelope' : 'Withdrawn by agent',
+    'Notes': (c.notes ? c.notes + ' | ' : '') + 'Withdrawn ' + isoNow_().slice(0, 10) + ' by ' + ctx.user.email });
   return listListingChanges(token, dealId);
 }
 
@@ -348,7 +354,7 @@ function changeStage_(c) {
   if (/^updated/i.test(c.matrix_status)) return { label: 'Updated in Matrix', tone: 'ok' };
   if (c.matrix_status) return { label: 'Signed · Matrix ' + c.matrix_status.toLowerCase(), tone: 'wait' };
   if (/needs/i.test(c.skyslope_status)) return { label: c.skyslope_status, tone: 'err' };
-  return { label: { 'Requested': 'Preparing form in SkySlope', 'Form Ready': 'Form ready to send for signature',
+  return { label: { 'Requested': 'Preparing form in SkySlope', 'Form Ready': 'Sending for signature',
     'Out for Signature': 'Out for signature', 'Signed': 'Signed' }[c.skyslope_status] || c.skyslope_status, tone: 'wait' };
 }
 
