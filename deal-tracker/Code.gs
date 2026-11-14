@@ -26,6 +26,8 @@
 // ---------------------------------------------------------------------------
 
 var APP_NAME = 'Agent Deal Tracker';
+/** Shown at the top of the page so you can tell which version the agents' link is serving. */
+var APP_VERSION = '2026-11-14b';
 
 /** Mac's "Office Sheets" spreadsheet (inventory tabs). Override with Script Property INVENTORY_SPREADSHEET_ID. */
 var DEFAULT_INVENTORY_ID = '1-Bob1r8pXD3AkgtDJXs9-IiSWHWIwTGgS5zULBgQmXI';
@@ -291,7 +293,7 @@ function doGet() {
 
 function getAppConfig() {
   return {
-    appName: APP_NAME, sides: SIDES, statuses: STATUSES, offices: OFFICES, statusRank: STATUS_RANK, stageRules: STAGE_RULES,
+    appName: APP_NAME, version: APP_VERSION, sides: SIDES, statuses: STATUSES, offices: OFFICES, statusRank: STATUS_RANK, stageRules: STAGE_RULES,
     fields: FIELDS, milestones: MILESTONES, roster: readSkySlopeRoster_(), maxUploadBytes: MAX_UPLOAD_BYTES,
     matrix: matrixConfig_(), changes: changesConfig_()
   };

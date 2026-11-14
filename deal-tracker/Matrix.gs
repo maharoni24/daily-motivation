@@ -50,10 +50,11 @@ function getMatrixListing(token, dealId) {
   var ctx = matrixDeal_(token, dealId);
   var rec = matrixRecord_(dealId);
   var out = rec ? publicRecord_(rec) : { type: '', data: {}, media: [], matrix_status: '', matrix_notes: '', matrix_listing: '' };
-  // The deal's own agent gets their MLS ID (their sign-in PIN) as List Agent ID.
-  if (ctx.user.email === ctx.deal.agent_email) {
-    var me = findAgent_(ctx.user.email);
-    if (me && /^\d{3,}$/.test(me.pin)) out.my_mls_id = me.pin;
+  // List Agent ID = the deal's agent's MLS ID (their sign-in PIN), so Matrix lists it under that agent.
+  // Shown to that agent and to admins entering a listing for them; never to other agents.
+  if (ctx.user.email === ctx.deal.agent_email || ctx.user.isAdmin) {
+    var owner = findAgent_(String(ctx.deal.agent_email || '').toLowerCase());
+    if (owner && /^[A-Za-z0-9-]{3,}$/.test(owner.pin)) out.my_mls_id = owner.pin;
   }
   return out;
 }

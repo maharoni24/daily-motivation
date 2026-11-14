@@ -78,7 +78,8 @@
   /* Editor */
   .ed-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
   .ed-head h2 { margin: 0; font-size: 20px; flex: 1; min-width: 200px; }
-  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 14px; overflow-x: auto; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+  .ver { font-size: 11px; opacity: .6; font-weight: 400; margin-left: 6px; }
   .tab { padding: 10px 14px; border: 0; background: none; font: inherit; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
   .tab.on { color: var(--accent); border-color: var(--accent); }
   fieldset { border: 0; padding: 0; margin: 0 0 18px; }
@@ -151,6 +152,7 @@
   @media (max-width: 640px) {
     .grid, .filters, .filters.admin, .sides, .docs-upload, .mx-top { grid-template-columns: 1fr; }
     .photo { grid-template-columns: 90px 1fr; }
+    .tab { padding: 8px 10px; }
     .stats { grid-template-columns: repeat(2, 1fr); }
     .ms { grid-template-columns: 28px 1fr; }
     .ms input[type=date] { grid-column: 2; }
@@ -358,7 +360,7 @@
   // ---------- boot ----------
   call('getAppConfig').then(function (cfg) {
     CFG = cfg;
-    $('appTitle').textContent = cfg.appName;
+    $('appTitle').innerHTML = esc(cfg.appName) + (cfg.version ? '<span class="ver">v' + esc(cfg.version) + '</span>' : '');
     cfg.sides.forEach(function (s) { $('fSide').insertAdjacentHTML('beforeend', '<option>' + s + '</option>'); });
     cfg.statuses.forEach(function (s) {
       $('fStatus').insertAdjacentHTML('beforeend', '<option>' + s + '</option>');
@@ -957,6 +959,7 @@
       }
       if (f.id === 'listAgentName') v = (CURRENT && CURRENT.agent_name) || (!USER.isAdmin ? USER.name : '');
       if (f.id === 'listAgentId' && MX.my_mls_id) v = MX.my_mls_id;
+      if (f.id === 'listOfficeName') v = CFG.changes ? CFG.changes.officeName : '';
       if (f.type === 'radio' && v && f.options.indexOf(v) < 0) v = '';
       if (v) { MX.data[f.id] = v; changed = true; }
     });
