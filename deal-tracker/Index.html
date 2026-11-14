@@ -133,6 +133,15 @@
   .mx-issues ul { margin: 6px 0 0; padding-left: 18px; }
   .mx-issues a { color: inherit; }
 
+  /* Listing changes tab */
+  .chg-types { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); margin-top: 8px; }
+  .chg-tile { padding: 12px 14px; }
+  .chg-tile b { font-size: 15px; }
+  .chg-tile:disabled { opacity: .45; cursor: default; }
+  .chg-steps { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .chg-steps span { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #f3f4f6; color: var(--muted); }
+  .chg-steps span.on { background: #d1fae5; color: #065f46; }
+
   /* Toast */
   #toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); background: #111827; color: #fff; padding: 11px 16px; border-radius: 10px; font-size: 14px; max-width: calc(100% - 32px); z-index: 50; box-shadow: 0 8px 24px rgba(0,0,0,.2); }
   #toast.err { background: var(--bad); }
@@ -216,6 +225,7 @@
       <button class="tab on" data-tab="details">Deal details</button>
       <button class="tab" data-tab="milestones">Milestones <span id="msCount"></span></button>
       <button class="tab" data-tab="docs">Documents</button>
+      <button class="tab hidden" data-tab="changes" id="chgTabBtn">Listing changes</button>
       <button class="tab hidden" data-tab="mls" id="mlsTabBtn">MLS listing <span id="mxTabCount"></span></button>
     </div>
 
@@ -243,6 +253,15 @@
           </div>
           <div id="docList"></div>
         </div>
+      </div>
+
+      <div data-pane="changes" class="card hidden" id="chgPane">
+        <p class="muted" style="margin-top:0;font-size:13px">Price change, temporarily off market, back on market, withdraw, cancel or extend. Each one fills in the OneKey form in SkySlope for signature. <b>Once it is signed</b>, the change is made in Matrix and on this deal.</p>
+        <div id="chgNoMls" class="stage-banner hidden">Add the <b>MLS #</b> on Deal details and save first. Changes are for listings that are already on the MLS.</div>
+        <div id="chgOpenNote" class="stage-banner hidden"></div>
+        <div class="sides chg-types" id="chgTypes"></div>
+        <div id="chgForm"></div>
+        <fieldset style="margin-top:18px"><legend>Requests on this listing</legend><div id="chgList"></div></fieldset>
       </div>
 
       <div data-pane="mls" class="card hidden" id="mlsPane">
@@ -438,6 +457,7 @@
         '<div><span class="badge b-' + esc(d.side) + '">' + esc(d.side) + '</span> <span class="addr">' + esc(d.address) + '</span>' +
         '<div class="meta">' + esc(d.client_name) + (d.city ? ' · ' + esc(d.city) : '') + (USER.isAdmin ? ' · ' + esc(d.agent_name || d.agent_email) : '') + ' · ' + esc(d.deal_id) + '</div></div>' +
         '<div style="text-align:right"><span class="status s-' + esc(String(d.status).split(' ')[0]) + '">' + esc(d.status) + '</span><div style="margin-top:6px">' + skyChip(d.skyslope_status) + '</div>' +
+        (d.open_change ? '<div style="margin-top:4px"><span class="sky wait">' + esc(d.open_change) + '</span></div>' : '') +
         (d.matrix_status && d.matrix_status !== 'Draft' ? '<div style="margin-top:4px"><span class="sky ' + (/queued/i.test(d.matrix_status) ? 'wait' : /entered|active|live/i.test(d.matrix_status) ? 'ok' : 'err') + '">Matrix: ' + esc(d.matrix_status) + '</span></div>' : '') + '</div>' +
         '<div class="meta" style="grid-column:1/-1">Next: <b style="color:#374151">' + esc(d.next_milestone || '') + '</b>' +
         (d.current_milestone_date ? ' · Last update ' + esc(d.current_milestone_date) : '') + (d.closing_date ? ' · Closing ' + esc(d.closing_date) : '') + '</div>' +
@@ -517,6 +537,7 @@
     renderDocs(deal.documents || []);
 
     mxOpen(deal);
+    chgOpen(deal);
 
     setTab('details');
     show('editor');
@@ -576,7 +597,7 @@
   function stageCheck() {
     if (!CURRENT) return { stage: '', missing: [], keys: [] };
     var side = CURRENT.side, st = $('edStatus').value, R = CFG.statusRank || {};
-    if (st === 'Cancelled' || st === 'TOM') return { stage: '', missing: [], keys: [] };
+    if (st === 'Cancelled' || st === 'TOM' || st === 'Withdrawn') return { stage: '', missing: [], keys: [] };
     var rank = R[st] || 0;
     (CFG.milestones[side] || []).forEach(function (m) {
       var cb = $('ms_' + m.key);
@@ -735,6 +756,117 @@
       r.readAsDataURL(file);
     });
   }
+
+  // =====================================================================
+  // LISTING CHANGES — price change, TOM, back on market, withdraw, cancel, extend
+  // =====================================================================
+  var CHG = { type: '', list: [] };
+
+  function chgOpen(deal) {
+    var show = mxIsListingSide(deal.side) && !!deal.deal_id;
+    $('chgTabBtn').classList.toggle('hidden', !show);
+    CHG = { type: '', list: [] };
+    if (!show) return;
+    $('chgTypes').innerHTML = CFG.changes.types.map(function (t) {
+      return '<button type="button" class="side-tile chg-tile" data-chg="' + t.id + '"><b>' + esc(t.name) + '</b><span>' + esc(t.form) + '</span></button>';
+    }).join('');
+    $('chgForm').innerHTML = '';
+    $('chgList').innerHTML = '<p class="muted"><span class="spinner"></span>Loading…</p>';
+    chgNoMls();
+    call('listListingChanges', TOKEN, deal.deal_id).then(function (list) { if (CURRENT === deal) { CHG.list = list || []; chgRenderList(); } })
+      .catch(function (e) { $('chgList').innerHTML = '<p class="muted">' + esc(e.message) + '</p>'; });
+  }
+
+  function chgNoMls() {
+    var noMls = !(CURRENT && CURRENT.mls_number);
+    $('chgNoMls').classList.toggle('hidden', !noMls);
+    $('chgTypes').classList.toggle('hidden', noMls);
+    return noMls;
+  }
+
+  function chgRenderList() {
+    var open = CHG.list.filter(function (c) { return c.open; })[0];
+    $('chgOpenNote').classList.toggle('hidden', !open);
+    if (open) $('chgOpenNote').innerHTML = '<b>' + esc(open.type_name) + '</b> is in progress. Finish or withdraw it before requesting another change.';
+    Array.prototype.forEach.call(document.querySelectorAll('.chg-tile'), function (b) { b.disabled = !!open; });
+    $('chgList').innerHTML = CHG.list.length ? CHG.list.map(function (c) {
+      var steps = [['Requested', true], ['Form prepared', c.skyslope_status !== 'Requested'], ['Signed', c.skyslope_status === 'Signed' || !!c.matrix_status],
+        ['Changed in Matrix', /^updated/i.test(c.matrix_status)], ['Deal updated', !!c.applied_at]];
+      if (/withdrawn/i.test(c.skyslope_status)) steps = [['Withdrawn', true]];
+      return '<div class="doc" style="display:block"><div class="row" style="justify-content:space-between">' +
+        '<div><b>' + esc(c.type_name) + '</b> · ' + esc(c.summary) + '<div class="muted" style="font-size:12px">' + esc(String(c.requested_at).replace('T', ' ').slice(0, 16)) + ' · ' + esc(c.requested_by) + '</div></div>' +
+        '<span class="sky ' + esc(c.stage.tone) + '">' + esc(c.stage.label) + '</span></div>' +
+        '<div class="chg-steps">' + steps.map(function (s) { return '<span class="' + (s[1] ? 'on' : '') + '">' + (s[1] ? '✓ ' : '') + esc(s[0]) + '</span>'; }).join('') + '</div>' +
+        (c.signature_link && !c.matrix_status ? '<div style="margin-top:6px"><a href="' + esc(c.signature_link) + '" target="_blank" rel="noopener">Open the signature request in SkySlope</a>' +
+          (c.skyslope_status === 'Form Ready' ? ' <span class="muted" style="font-size:12px">· review it and press Send</span>' : '') + '</div>' : '') +
+        (c.notes ? '<div class="muted" style="font-size:12px;margin-top:4px">' + esc(c.notes) + '</div>' : '') +
+        (c.open && c.skyslope_status !== 'Signed' && !c.matrix_status ? '<div style="margin-top:6px"><button type="button" class="btn" data-chgwithdraw="' + esc(c.change_id) + '">Withdraw this request</button></div>' : '') +
+        '</div>';
+    }).join('') : '<p class="muted" style="margin:0">No changes requested yet.</p>';
+  }
+
+  function chgField(label, html, help, wide) {
+    return '<div class="' + (wide ? 'wide' : '') + '"><label class="req">' + esc(label) + '</label>' + html + (help ? '<span class="help">' + esc(help) + '</span>' : '') + '</div>';
+  }
+
+  function chgShowForm(id) {
+    var t = CFG.changes.types.filter(function (x) { return x.id === id; })[0];
+    CHG.type = id;
+    var d = CURRENT, today = todayStr();
+    var money = function (v) { return v ? '$' + Number(v).toLocaleString('en-US') : 'not entered'; };
+    var f = [];
+    f.push(chgField(id === 'withdraw' ? 'Date of withdrawal' : id === 'cancel' ? 'Date of cancellation' : 'Effective date',
+      '<input type="date" id="chg_effective_date" value="' + today + '">'));
+    if (id === 'price') f.push(chgField('New price', '<input id="chg_new_price" inputmode="decimal" placeholder="$">', 'Current list price: ' + money(d.list_price)));
+    if (id === 'back') f.push(chgField('Date it originally went off the market', '<input type="date" id="chg_original_off_date">', 'Coming back from ' + (d.status === 'Withdrawn' ? 'Withdrawn' : 'Temporarily Off Market') + '.'));
+    if (id === 'withdraw') {
+      f.push(chgField('Seller still owes the commission if it sells on or before', '<input type="date" id="chg_protection_date" value="' + esc(d.listing_expiration || '') + '">', 'Usually the listing expiration date (' + (d.listing_expiration || 'not entered') + ').'));
+      f.push(chgField('Seller relists with us if offered again on or before', '<input type="date" id="chg_relist_date" value="' + esc(d.listing_expiration || '') + '">'));
+    }
+    if (id === 'extend') {
+      var agr = (MX && MX.data && MX.data.listingAgreement) || '';
+      f.push(chgField('New expiration date', '<input type="date" id="chg_new_expiration">', 'Current expiration: ' + (d.listing_expiration || 'not entered on Deal details') + '.'));
+      f.push(chgField('Original listing agreement', '<select id="chg_agreement"><option value="">—</option><option' + (agr !== 'Exclusive Agency' ? ' selected' : '') + '>Exclusive Right to Sell / Rent</option><option' + (agr === 'Exclusive Agency' ? ' selected' : '') + '>Exclusive Agency</option></select>'));
+      f.push('<div class="wide"><label>Exceptions to the original terms</label><input id="chg_exceptions" placeholder="None"><span class="help">Leave blank for "None".</span></div>');
+    }
+    if (id === 'other') f.push('<div class="wide"><label class="req">What exactly should change in Matrix?</label><textarea id="chg_note"></textarea></div>');
+    else f.push('<div class="wide"><label>Note for the office (optional)</label><input id="chg_note"></div>');
+    if (id === 'withdraw' || id === 'cancel') f.push('<div class="wide"><label style="font-weight:400;display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="chg_no_negotiations" style="width:auto;margin-top:3px"> I confirm there are no negotiations pending with anyone for the sale, lease or exchange of this property.</label></div>');
+    var signers = (t.ownerSigns ? 'the seller(s) (' + ([d.client_company || [d.client_first, d.client_last].filter(Boolean).join(' '), [d.client2_first, d.client2_last].filter(Boolean).join(' ')].filter(Boolean).join(' & ') || 'client on Deal details') + ')' : '') +
+      (t.firmSigns ? ' and the firm representative' : t.ownerSigns ? ' and you' : 'you');
+    $('chgForm').innerHTML = '<div class="card" style="margin-top:12px;border-color:#c4b5fd"><div class="row" style="justify-content:space-between"><b style="font-size:16px">' + esc(t.name) + '</b><button type="button" class="btn" id="chgCancelForm">Close</button></div>' +
+      '<p class="muted" style="font-size:13px;margin:6px 0 12px">' + esc(t.help) + '</p><div class="grid">' + f.join('') + '</div>' +
+      '<p style="font-size:13px;margin:12px 0 0"><b>What happens next:</b> the OneKey <b>' + esc(t.form) + '</b> is filled in from this deal in SkySlope for ' + esc(signers) + ' to sign. ' +
+      'Once it is signed, ' + esc(t.matrix.charAt(0).toLowerCase() + t.matrix.slice(1)) + ' in Matrix and the deal is updated. Nothing changes before the signature.</p>' +
+      '<div class="mx-actions"><button type="button" class="btn primary" id="chgSubmit">Request ' + esc(t.name.toLowerCase()) + '</button></div></div>';
+    $('chgForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  $('chgPane').addEventListener('click', function (ev) {
+    var tile = ev.target.closest('[data-chg]');
+    if (tile && !tile.disabled) { chgShowForm(tile.getAttribute('data-chg')); return; }
+    if (ev.target.id === 'chgCancelForm') { $('chgForm').innerHTML = ''; CHG.type = ''; return; }
+    var wd = ev.target.closest('[data-chgwithdraw]');
+    if (wd) {
+      if (!confirm('Withdraw this request? If a signature request was already sent, void it in SkySlope.')) return;
+      busy(wd, true, 'Withdrawing…');
+      call('withdrawListingChange', TOKEN, CURRENT.deal_id, wd.getAttribute('data-chgwithdraw'))
+        .then(function (list) { CHG.list = list; chgRenderList(); toast('Request withdrawn.'); refreshListQuiet(); })
+        .catch(function (e) { toast(e.message, true); busy(wd, false); });
+      return;
+    }
+    if (ev.target.id === 'chgSubmit') {
+      var v = function (k) { var el = $('chg_' + k); return el ? (el.type === 'checkbox' ? el.checked : el.value.trim()) : ''; };
+      var details = { effective_date: v('effective_date'), new_price: v('new_price'), original_off_date: v('original_off_date'),
+        protection_date: v('protection_date'), relist_date: v('relist_date'), new_expiration: v('new_expiration'),
+        agreement: v('agreement'), exceptions: v('exceptions'), note: v('note'), no_negotiations: v('no_negotiations') === true };
+      var btn = ev.target; busy(btn, true, 'Sending request…');
+      call('requestListingChange', TOKEN, CURRENT.deal_id, { type: CHG.type, details: details })
+        .then(function () { return call('listListingChanges', TOKEN, CURRENT.deal_id); })
+        .then(function (list) { CHG.list = list; $('chgForm').innerHTML = ''; chgRenderList(); toast('Requested. The form is being prepared in SkySlope for signature.'); refreshListQuiet(); })
+        .catch(function (e) { toast(e.message, true); busy(btn, false); });
+    }
+  });
 
   // =====================================================================
   // MLS LISTING (OneKey Matrix input sheet) — Seller and Landlord deals

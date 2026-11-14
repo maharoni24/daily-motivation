@@ -75,6 +75,38 @@ On a Seller or Landlord deal, the editor has a fourth tab, **MLS listing**. It m
 
 The field definitions are in `matrix/*.js`, shared with the standalone `matrix-listing-intake` app. After changing them, run `python3 build.py` to regenerate `MatrixSchemas.gs` and `DealTracker.gs`.
 
+## Listing changes tab (Seller and Landlord deals on the MLS)
+Once a listing deal is saved and has an **MLS #**, the editor shows **Listing changes**. The agent (or you) picks a change and fills in a short form:
+
+| Change | OneKey form (in `forms/`) | Signed by | In Matrix once signed | On the deal |
+|---|---|---|---|---|
+| Price change | Status Change Form | Seller(s) + agent | New price | List price updated |
+| Temporarily off market | Status Change Form | Seller(s) + agent | Status TOM | Status TOM (inventory too) |
+| Back on market | Status Change Form | Seller(s) + agent | Status Active | Status Active |
+| Withdraw listing | Listing Withdrawal Form | Seller(s) + firm representative | Status Withdrawn | Status Withdrawn |
+| Cancel listing | Listing Cancellation Form | Seller(s) + firm representative | Status Cancelled | Status Cancelled |
+| Extend listing | Extension Agreement | Seller(s) + agent | New expiration date + signed form uploaded | Expiration date updated |
+| Other change | Status Change Form (All Other Changes) | Agent | The change described | — |
+
+How a request moves:
+1. **Requested.** The request is saved in the **Listing Changes** tab with a ready-to-fill payload (office, agent, MLS #, owners, address, listing dates and the new values).
+2. **Form ready.** The SkySlope task (`SKYSLOPE_TASK.md`, part D) adds the OneKey form to the deal's SkySlope file, fills it in and prepares the signature request. It does **not** send it: the agent or you review it and press Send from the link shown on the deal.
+3. **Signed.** The SkySlope task sees the envelope is fully signed and queues the change for Matrix.
+4. **Changed in Matrix.** The Matrix task (`MATRIX_TASK.md`, part C) makes exactly that change on the live listing and submits it. This is the only time the Matrix task submits anything, because the owner signed for it.
+5. **Deal updated.** Within 5 minutes the Deal Tracker updates the deal's price, expiration or status. TOM is also written to the office inventory; other changes are left for you on the inventory sheet.
+
+Guard rails:
+- One open request per listing. The agent can withdraw a request until it's signed.
+- A listing can only go TOM or be withdrawn while it's on the market, and only come back from TOM or Withdrawn.
+- Withdraw and Cancel require the agent to confirm that no negotiations are pending.
+- An extension is refused more than 30 days after expiration (OneKey's rule: enter it as a new listing instead).
+- **Withdrawn** is a new deal status. Like TOM and Cancelled, it isn't held to the stage requirements.
+
+**Before first use:**
+- Put your two **MLS office codes** in `OFFICE_MLS_CODES` at the top of `ListingChanges.gs`; they print on every form.
+- Make sure the four OneKey forms are in your SkySlope forms library. The PDFs are in `forms/`.
+- The firm representative defaults to you. To change it, set Script Properties `FIRM_REP_NAME` and `FIRM_REP_EMAIL`.
+
 ## Office Sheets rules (same as the daily inventory sync)
 - A deal already on either tab (MLS # or street number + street name) is **never duplicated**.
 - New rows go **inside the data block** of the agent's office tab, next to rows with the same status, so the TOTAL row still counts them. They are highlighted yellow for your review, with **Skyslope = "Needs To Be Added"**.
@@ -88,9 +120,9 @@ The field definitions are in `matrix/*.js`, shared with the standalone `matrix-l
 1. **Create a new Google Sheet** called "Deal Tracker". Keep it separate from Office Sheets, which holds passwords. Then go to **Extensions → Apps Script**.
 2. Paste in the files:
    - **One paste:** paste `DealTracker.gs` over the default code. It includes everything below.
-   - **Or file by file:** paste `Code.gs` over the default code, add script files `Matrix.gs` and `MatrixSchemas.gs`, and add an HTML file named `Index` with `Index.html`.
+   - **Or file by file:** paste `Code.gs` over the default code, add script files `Matrix.gs`, `ListingChanges.gs` and `MatrixSchemas.gs`, and add an HTML file named `Index` with `Index.html`.
    - Turn on "Show appsscript.json" in Project Settings, then paste `appsscript.json`.
-3. **Run `setup`** and approve the permissions. That creates the tabs Deals, Agents, Milestone Log, Sync Log, Documents and MLS Listings, and points at your Office Sheets. The MLS photo folder is created in your Drive the first time an agent uploads a photo.
+3. **Run `setup`** and approve the permissions. That creates the tabs Deals, Agents, Milestone Log, Sync Log, Documents, MLS Listings and Listing Changes, and points at your Office Sheets. The MLS photo folder is created in your Drive the first time an agent uploads a photo.
 4. **Fill in the Agents tab**:
 
    | Name | Email | PIN | Role | Active | Office | SkySlope Name |
@@ -104,7 +136,7 @@ The field definitions are in `matrix/*.js`, shared with the standalone `matrix-l
 6. **Create the SkySlope task** from the Claude desktop app using `SKYSLOPE_TASK.md`.
 7. **Create the Matrix task** the same way using `MATRIX_TASK.md`. First confirm with OneKey MLS that assisted entry in your own signed-in browser is allowed.
 
-**Already running the Deal Tracker?** Paste the new `DealTracker.gs` (or the four files), run `setup` once more to add the MLS Listings tab, then use **Deploy → Manage deployments → Edit → New version**. Agents keep the same link.
+**Already running the Deal Tracker?** Paste the new `DealTracker.gs` (or the four files), run `setup` once more to add the MLS Listings and Listing Changes tabs, then use **Deploy → Manage deployments → Edit → New version**. Agents keep the same link.
 
 After any code change: **Deploy → Manage deployments → Edit → New version**. The link stays the same.
 

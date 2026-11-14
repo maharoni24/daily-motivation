@@ -39,7 +39,9 @@ var SIDES = ['Seller', 'Buyer', 'Tenant', 'Landlord'];
 var OFFICES = ['Dix Hills', 'Farmingdale'];
 
 /** Same status words as the Office Sheets inventory tabs. */
-var STATUSES = ['Coming Soon', 'Active', 'Accepted Offer', 'Under Contract', 'Closing Set', 'Sold', 'TOM', 'Cancelled'];
+var STATUSES = ['Coming Soon', 'Active', 'Accepted Offer', 'Under Contract', 'Closing Set', 'Sold', 'TOM', 'Withdrawn', 'Cancelled'];
+/** Off the market: no stage requirements, and milestones don't move the status forward. */
+var OFF_MARKET = ['TOM', 'Withdrawn', 'Cancelled'];
 var STATUS_RANK = { 'Coming Soon': 1, 'Active': 2, 'Accepted Offer': 3, 'Under Contract': 4, 'Closing Set': 5, 'Sold': 6 };
 
 var ALL = SIDES;
@@ -291,7 +293,7 @@ function getAppConfig() {
   return {
     appName: APP_NAME, sides: SIDES, statuses: STATUSES, offices: OFFICES, statusRank: STATUS_RANK, stageRules: STAGE_RULES,
     fields: FIELDS, milestones: MILESTONES, roster: readSkySlopeRoster_(), maxUploadBytes: MAX_UPLOAD_BYTES,
-    matrix: matrixConfig_()
+    matrix: matrixConfig_(), changes: changesConfig_()
   };
 }
 
@@ -307,6 +309,7 @@ function setup() {
   ensureSheet_(ss, SHEETS.SYNC_LOG, ['Timestamp', 'Deal ID', 'Target', 'Result', 'Details']);
   ensureSheet_(ss, SHEETS.DOCS, DOC_HEADERS);
   ensureSheet_(ss, MATRIX_SHEET, MATRIX_HEADERS);
+  ensureSheet_(ss, CHANGES_SHEET, CHANGE_HEADERS);
   installDocumentTrigger_();
   agents.getRange('B:C').setNumberFormat('@');
   var props = PropertiesService.getScriptProperties();
@@ -560,6 +563,7 @@ function readSkySlopeRoster_() {
 function listDeals(token) {
   var user = requireSession_(token);
   var mx = matrixStatuses_();
+  var chg = openChanges_();
   return readDeals_().deals
     .filter(function (d) { return user.isAdmin || d.agent_email === user.email; })
     .map(function (d) {
@@ -570,7 +574,7 @@ function listDeals(token) {
         current_milestone_date: d.current_milestone_date, next_milestone: d.next_milestone,
         milestones_done: d.milestones_done, milestones_total: (MILESTONES[d.side] || []).length,
         closing_date: d.closing_date || '', updated_at: d.updated_at,
-        skyslope_status: d.skyslope_status, skyslope_file: d.skyslope_file, matrix_status: mx[d.deal_id] || ''
+        skyslope_status: d.skyslope_status, skyslope_file: d.skyslope_file, matrix_status: mx[d.deal_id] || '', open_change: chg[d.deal_id] || ''
       };
     })
     .sort(function (a, b) { return String(b.updated_at).localeCompare(String(a.updated_at)); });
@@ -665,7 +669,7 @@ function saveDeal(token, input) {
     // Status: agent's choice, but a completed milestone moves it forward (never back)
     var status = STATUSES.indexOf(input.status) >= 0 ? input.status : (before.status || defaultStatus_(deal.side));
     msChanges.forEach(function (c) {
-      if (c.change === 'completed' && c.status && status !== 'Cancelled' && status !== 'TOM' &&
+      if (c.change === 'completed' && c.status && OFF_MARKET.indexOf(status) < 0 &&
           (STATUS_RANK[c.status] || 0) > (STATUS_RANK[status] || 0)) status = c.status;
     });
     deal.status = status;
@@ -730,7 +734,7 @@ function saveDeal(token, input) {
 
 /** Highest stage the deal has reached: its status, or a checked milestone. */
 function dealStage_(deal) {
-  if (deal.status === 'Cancelled' || deal.status === 'TOM') return '';
+  if (OFF_MARKET.indexOf(deal.status) >= 0) return '';
   var rank = STATUS_RANK[deal.status] || 0;
   (MILESTONES[deal.side] || []).forEach(function (m) {
     if (m.status && (deal.milestones || {})[m.key] && deal.milestones[m.key].done) rank = Math.max(rank, STATUS_RANK[m.status] || 0);
@@ -812,7 +816,7 @@ function findMlsOnInventory_(mls) {
 // ---------------------------------------------------------------------------
 
 function syncInventory_(deal) {
-  if (deal.status === 'Cancelled') return { ok: true, message: 'Cancelled: inventory left as is for Mac to review.' };
+  if (deal.status === 'Cancelled' || deal.status === 'Withdrawn') return { ok: true, message: deal.status + ': inventory left as is for Mac to review.' };
   if (OFFICES.indexOf(deal.office) < 0) return { ok: false, message: 'No office chosen.' };
   if (!deal.mls_number && !(deal.street_number && deal.street_name)) {
     return { ok: true, message: 'No property yet: not on the inventory tabs. It is added once an address or MLS # is entered.' };
@@ -1044,11 +1048,13 @@ function uploadDocument(token, dealId, file) {
 function processDocumentQueue() {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(10000)) return 'Busy';
-  var sent = 0, waiting = 0, errors = 0;
+  var sent = 0, waiting = 0, errors = 0, applied = 0;
   try {
+    // Listing changes Matrix has made (price, status, expiration) are applied to their deals here too.
+    try { applied = processListingChanges_(); } catch (e) { Logger.log('Listing changes: ' + e.message); }
     var sheet = docsSheet_();
     var data = sheet.getDataRange().getValues();
-    if (data.length < 2) return 'Nothing waiting.';
+    if (data.length < 2) return applied ? applied + ' listing change(s) applied to deals.' : 'Nothing waiting.';
     var h = indexHeaders_(data[0]);
     var deals = {};
     readDeals_().deals.forEach(function (d) { deals[d.deal_id] = d; });
@@ -1076,7 +1082,7 @@ function processDocumentQueue() {
   } finally {
     lock.releaseLock();
   }
-  var msgOut = 'Documents: ' + sent + ' sent to SkySlope, ' + waiting + ' still waiting for a SkySlope file' + (errors ? ', ' + errors + ' errors (see Documents tab)' : '') + '.';
+  var msgOut = (applied ? applied + ' listing change(s) applied to deals. ' : '') + 'Documents: ' + sent + ' sent to SkySlope, ' + waiting + ' still waiting for a SkySlope file' + (errors ? ', ' + errors + ' errors (see Documents tab)' : '') + '.';
   try { SpreadsheetApp.getActiveSpreadsheet().toast(msgOut, 'Deal Tracker', 10); } catch (e) {}
   return msgOut;
 }

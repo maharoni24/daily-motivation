@@ -5,7 +5,7 @@
 
 - MatrixSchemas.gs  <- matrix/*.js (the OneKey Matrix input sheets, shared with the
                        standalone matrix-listing-intake app)
-- DealTracker.gs    <- Code.gs + Matrix.gs + MatrixSchemas.gs + Index.html, as one file
+- DealTracker.gs    <- Code.gs + Matrix.gs + ListingChanges.gs + MatrixSchemas.gs + Index.html, as one file
                        for the single-paste setup
 """
 import json
@@ -45,6 +45,7 @@ def main():
     write("MatrixSchemas.gs", schemas)
     code = read("Code.gs").rstrip("\n")
     matrix = read("Matrix.gs").rstrip("\n")
+    changes = read("ListingChanges.gs").rstrip("\n")
     page = read("Index.html")
     bundle = (
         code + "\n\n"
@@ -52,6 +53,10 @@ def main():
         "// MLS LISTING (Matrix.gs)\n"
         "// ---------------------------------------------------------------------------\n"
         + matrix + "\n\n"
+        "// ---------------------------------------------------------------------------\n"
+        "// LISTING CHANGES (ListingChanges.gs)\n"
+        "// ---------------------------------------------------------------------------\n"
+        + changes + "\n\n"
         "// ---------------------------------------------------------------------------\n"
         "// MATRIX INPUT SHEETS (MatrixSchemas.gs)\n"
         "// ---------------------------------------------------------------------------\n"
