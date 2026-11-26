@@ -40,6 +40,7 @@
   --on-navy:#EAF1FB; --on-navy-muted:#9FB0CA; color-scheme:dark }
 
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html{scroll-behavior:smooth}
 body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
 h1,h2,h3{font-family:var(--display);line-height:1.1;margin:0;text-wrap:balance;letter-spacing:-.02em}
@@ -145,6 +146,8 @@ section{padding-block:104px}
 .spark circle{fill:var(--kairos)}
 .score-foot{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-top:20px;padding-top:18px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
 .score-foot a{font-weight:700;color:var(--sapphire);text-decoration:none}
+.method{margin-top:14px;font-size:12.5px;line-height:1.55;color:var(--muted)}
+.method a{color:var(--sapphire)}
 @media (max-width:560px){.score-main{grid-template-columns:1fr;justify-items:start}.gauge{width:120px;height:120px}}
 .feature-list{display:grid;gap:4px}
 .feature{display:grid;grid-template-columns:44px 1fr;gap:16px;padding:22px 4px;border-bottom:1px solid var(--line)}
@@ -290,10 +293,10 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
         <circle cx="200" cy="200" r="4" fill="#E2A042"/>
       </svg>
       <div class="dial-center"><div><div class="t" id="clock">--:--:--</div><small>chronos · the clock</small></div></div>
-      <div class="dial-card">
-        <div class="row"><span>TODAY'S KAIRO MOMENT</span></div>
-        <div class="sig"><span class="dot" id="hc-dot"></span><span id="hc-sig">Act now</span></div>
-        <div class="row"><span id="hc-area">Huntington, NY</span><span id="hc-score">Score 84</span></div>
+      <div class="dial-card" hidden>
+        <div class="row"><span>KAIRO MOMENT</span><span id="hc-month"></span></div>
+        <div class="sig"><span class="dot" id="hc-dot"></span><span id="hc-sig"></span></div>
+        <div class="row"><span id="hc-area"></span><span id="hc-score"></span></div>
       </div>
     </div>
   </div>
@@ -334,13 +337,13 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
     <div class="sec-head">
       <span class="eyebrow">For buyers &amp; sellers</span>
       <h2>Know <em style="font-style:normal" class="k">when</em>, not just how much.</h2>
-      <p class="lede">Pricing alone is a commodity. The Kairo Moment Score reads price trend, inventory and days on market, then gives you a plain signal, with a licensed agent one tap away.</p>
+      <p class="lede">Pricing alone is a commodity. The Kairo Moment Score reads pending sales, days on market, price cuts and inventory in your county, then tells you plainly whether the market favors buyers or sellers, with a licensed agent one tap away.</p>
     </div>
     <div class="clients-grid">
       <div class="score" id="score">
         <div class="score-top">
           <h3>Kairo Moment Score</h3>
-          <span class="pill" id="upd">Sample data · illustration only</span>
+          <span class="pill live" id="upd">Updated daily</span>
         </div>
         <div class="tabs" role="group" aria-label="Choose a market" id="tabs"></div>
         <div class="score-main">
@@ -351,17 +354,18 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
             <text x="75" y="102" text-anchor="middle" font-size="10" class="sub">OF 100</text>
           </svg>
           <div style="min-width:0">
-            <div class="signal" id="sig"><span class="dot"></span><span id="sigtxt">Act now</span></div>
+            <div class="signal" id="sig"><span class="dot"></span><span id="sigtxt"></span></div>
             <p style="color:var(--muted);font-size:15px;margin-top:6px" id="sigwhy"></p>
             <div class="stats">
-              <div><span>Median price</span><strong id="s1">–</strong></div>
-              <div><span>Days on market</span><strong id="s2">–</strong></div>
-              <div><span>Months of supply</span><strong id="s3">–</strong></div>
+              <div><span>Median list price</span><strong id="s1">–</strong></div>
+              <div><span>Median days on market</span><strong id="s2">–</strong></div>
+              <div><span>Active listings</span><strong id="s3">–</strong></div>
             </div>
           </div>
         </div>
         <svg class="spark" viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true"><path class="a" id="spa"/><path class="l" id="spl"/><circle id="spc" r="4"/></svg>
-        <div class="score-foot"><span>12-month price trend</span><a href="#contact">Talk to your agent →</a></div>
+        <div class="score-foot"><span>Median list price, last 12 months</span><a href="#contact">Talk to your agent →</a></div>
+        <p class="method" id="method">The Kairo Moment Score (0–100) compares this month's pending-sale ratio, days on market, share of listings with a price cut and active inventory, each measured against the same month a year earlier, with the past three years in that county. 60 and above favors sellers, below 40 favors buyers. Source: <a href="https://www.realtor.com/research/data/" target="_blank" rel="noopener">Realtor.com Economic Research</a>, county data for <span id="src-month"></span>. Estimates only, not an appraisal.</p>
       </div>
 
       <div>
@@ -449,7 +453,7 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
     <div>
       <span class="eyebrow" style="color:var(--sky)">Start the conversation</span>
       <h2 style="margin-top:14px">Your moment is closer than you think.</h2>
-      <p class="lede">Tell us where you are. A licensed Kairo agent who knows your neighborhood will follow up personally, usually within minutes.</p>
+      <p class="lede">Tell us where you are. A licensed Kairo agent who knows your neighborhood will follow up personally.</p>
     </div>
     <form id="lead" novalidate>
       <div class="seg" role="radiogroup" aria-label="I am">
@@ -488,7 +492,7 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
     </div>
     <div class="legal">
       <span class="eho"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M1.5 8L9 2l7.5 6M3.5 7v9h11V7" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M6.5 10.5h5M6.5 13h5" stroke="currentColor" stroke-width="1.6"/></svg>Equal Housing Opportunity</span>
-      <p>Kairo Realty is a licensed real estate broker in the State of New York. Kairo Concierge is an AI assistant: it provides general information and scheduling only. Pricing opinions, advice, negotiation and representation are provided solely by licensed Kairo Realty agents. Moment Score figures are estimates, not appraisals.</p>
+      <p>Kairo Realty is a licensed real estate broker in the State of New York. Kairo Concierge is an AI assistant: it provides general information and scheduling only. Pricing opinions, advice, negotiation and representation are provided solely by licensed Kairo Realty agents. Moment Score figures are estimates, not appraisals. Market data: Realtor.com Economic Research.</p>
       <p>© <span id="yr">2026</span> Kairo Realty. Intelligent Real Estate, Perfectly Timed.</p>
     </div>
   </div>
@@ -523,22 +527,23 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
   tick();
 
   /* ---- Moment Score: reads data/moment-scores.json (updated daily); built-in copy is the fallback ---- */
-  var DATA={"updated":"2026-11-26","sample":true,"markets":[{"name":"Long Island","area":"Huntington, NY","score":84,"signal":"Act now","why":"Inventory is tight and well-priced homes are going under contract fast.","median":"$689K","dom":31,"supply":2.1,"trend":[62,63,63,65,66,66,68,70,71,72,74,76]},{"name":"Brooklyn","area":"Bay Ridge, Brooklyn","score":71,"signal":"Good time","why":"Prices are steady and buyers have a little more room to negotiate.","median":"$1.02M","dom":48,"supply":3.4,"trend":[70,71,70,72,71,72,73,73,72,74,74,75]},{"name":"Queens","area":"Bayside, Queens","score":78,"signal":"Act now","why":"Demand near transit is outpacing new listings this season.","median":"$712K","dom":39,"supply":2.6,"trend":[60,61,62,62,64,65,65,67,68,69,70,71]},{"name":"The Bronx","area":"Riverdale, Bronx","score":58,"signal":"Good time","why":"More choice on the market. Patient buyers are finding value.","median":"$498K","dom":62,"supply":4.3,"trend":[66,65,66,65,64,65,64,63,64,63,64,64]},{"name":"Staten Island","area":"Tottenville, Staten Island","score":42,"signal":"Wait & watch","why":"Listings are rising. A price adjustment window may be ahead.","median":"$655K","dom":71,"supply":5.0,"trend":[72,73,72,71,71,70,69,69,68,67,67,66]}]};
-  var SIG={'Act now':'#E2A042','Good time':'#3E9B6E','Wait & watch':'#7F8FA8'};
+  var DATA=/*DATA*/{"source":"Realtor.com Economic Research","source_url":"https://www.realtor.com/research/data/","data_month":"202610","month_label":"October 2026","checked":"2026-11-26","checked_label":"Nov 26, 2026","markets":[{"name":"Nassau","area":"Nassau County, Long Island","score":16,"signal":"Buyer's moment","why":"Homes are spending a median 59 days on market, up 3% from a year ago. 13% of listings took a price cut. Active listings are up 5% from a year ago.","median":"$939K","dom":59,"active":2605,"pending_ratio":0.5789,"trend":[899000,899999,918500,922500,939999,934000,949995,959749,958500,950000,949000,939000]},{"name":"Suffolk","area":"Suffolk County, Long Island","score":31,"signal":"Buyer's moment","why":"Homes are spending a median 58 days on market, down 9% from a year ago. 12% of listings took a price cut. Active listings are up 4% from a year ago.","median":"$875K","dom":58,"active":4269,"pending_ratio":0.4387,"trend":[899999,941750,949999,989000,995000,987500,949000,937000,900000,899000,899000,875000]},{"name":"Brooklyn","area":"Brooklyn (Kings County)","score":37,"signal":"Buyer's moment","why":"Homes are spending a median 60 days on market, down 11% from a year ago. 11% of listings took a price cut. Active listings are up 4% from a year ago.","median":"$808K","dom":60,"active":3224,"pending_ratio":0.3614,"trend":[809500,794000,799000,799000,799475,824875,839400,867000,832500,795000,808033,808000]},{"name":"Queens","area":"Queens","score":16,"signal":"Buyer's moment","why":"Homes are spending a median 74 days on market, down 3% from a year ago. 10% of listings took a price cut. Active listings are up 6% from a year ago.","median":"$648K","dom":74,"active":4516,"pending_ratio":0.324,"trend":[640000,642000,628000,623750,629422,642500,649000,649500,650000,650000,649500,648000]},{"name":"The Bronx","area":"The Bronx","score":23,"signal":"Buyer's moment","why":"Homes are spending a median 79 days on market, down 2% from a year ago. 12% of listings took a price cut. Active listings are up 10% from a year ago.","median":"$335K","dom":79,"active":1114,"pending_ratio":0.1732,"trend":[342500,329500,329450,333750,327475,322500,319000,307450,322500,329000,329000,335000]},{"name":"Staten Island","area":"Staten Island (Richmond County)","score":24,"signal":"Buyer's moment","why":"Homes are spending a median 60 days on market, down 8% from a year ago. 15% of listings took a price cut. Active listings are up 16% from a year ago.","median":"$700K","dom":60,"active":948,"pending_ratio":0.6582,"trend":[715000,726450,715000,699500,699000,699000,700000,712472,717000,699900,700000,699900]}]}/*END*/;
+  var SIG={"Seller's moment":'#E2A042','Balanced market':'#3E9B6E',"Buyer's moment":'#5B8BD0'};
   var M=[], gv=document.getElementById('gv'), gnum=document.getElementById('gnum'), C=389.6, tabs=document.getElementById('tabs');
   function render(d){
     M=d.markets||[]; if(!M.length) return;
     tabs.innerHTML='';
     M.forEach(function(m,k){var b=document.createElement('button');b.type='button';b.dataset.m=k;b.textContent=m.name;tabs.appendChild(b)});
-    var upd=document.getElementById('upd'), dt=new Date(d.updated+'T12:00:00');
-    var nice=isNaN(dt)?d.updated:dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-    upd.textContent=d.sample?'Sample data · illustration only':'Updated '+nice;
-    upd.classList.toggle('live',!d.sample);
+    var mo=d.month_label||'';
+    document.getElementById('upd').textContent='Data: '+mo+' · checked '+(d.checked_label||'');
+    document.getElementById('src-month').textContent=mo;
+    document.getElementById('hc-month').textContent=mo;
     var top=M.slice().sort(function(a,b){return b.score-a.score})[0];
     document.getElementById('hc-sig').textContent=top.signal;
     document.getElementById('hc-dot').style.background=SIG[top.signal]||'#E2A042';
     document.getElementById('hc-area').textContent=top.area||top.name;
     document.getElementById('hc-score').textContent='Score '+top.score;
+    document.querySelector('.dial-card').hidden=false;
     show(0);
   }
   function show(i){
@@ -550,8 +555,8 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
     document.getElementById('sig').style.setProperty('--sig',SIG[m.signal]||'#E2A042');
     document.getElementById('sigwhy').textContent=m.why;
     document.getElementById('s1').textContent=m.median;
-    document.getElementById('s2').textContent=m.dom;
-    document.getElementById('s3').textContent=m.supply;
+    document.getElementById('s2').textContent=m.dom+' days';
+    document.getElementById('s3').textContent=m.active.toLocaleString('en-US');
     var t=m.trend, mn=Math.min.apply(0,t)-3, mx=Math.max.apply(0,t)+3, W=300, H=56, P=6;
     var pts=t.map(function(v,k){return [P+k*(W-2*P)/(t.length-1), H-P-(v-mn)/(mx-mn)*(H-2*P)]});
     var d='M'+pts.map(function(q){return q[0].toFixed(1)+' '+q[1].toFixed(1)}).join(' L');
