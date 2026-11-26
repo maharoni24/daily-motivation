@@ -121,6 +121,8 @@ section{padding-block:104px}
 .score{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:28px;box-shadow:0 30px 60px -30px rgba(14,33,66,.25);min-width:0}
 .score-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .score-top h3{font-size:20px;font-weight:600}
+.pill.live{background:color-mix(in srgb,#3E9B6E 16%,var(--surface));color:#2C7A55}
+.pill.live::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#3E9B6E;margin-right:7px;vertical-align:1px}
 .pill{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:5px 10px;border-radius:999px;background:var(--sunk);color:var(--muted)}
 .tabs{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0 22px}
 .tabs button{font:600 13px var(--body);padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--fg);cursor:pointer}
@@ -171,58 +173,6 @@ section{padding-block:104px}
 @media (max-width:900px){.steps{grid-template-columns:1fr 1fr}}
 @media (max-width:520px){.steps,.bands{grid-template-columns:1fr}}
 
-/* Agents */
-.agents{background:var(--navy);color:var(--on-navy)}
-.agents .eyebrow{color:var(--sky)}
-.agents .lede{color:var(--on-navy-muted)}
-.offer{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:rgba(255,255,255,.1);border-radius:20px;overflow:hidden;margin-bottom:64px}
-.offer div{background:var(--navy-2);padding:34px 30px;display:grid;gap:6px}
-.offer strong{font-family:var(--display);font-size:clamp(2.6rem,5vw,3.8rem);font-weight:300;letter-spacing:-.04em;line-height:1}
-.offer strong .k{font-weight:600}
-.offer > div > span{color:var(--on-navy-muted);font-size:15px}
-@media (max-width:760px){.offer{grid-template-columns:1fr}}
-.os-head{display:flex;justify-content:space-between;align-items:end;gap:20px;flex-wrap:wrap;margin-bottom:28px}
-.os-head h3{font-size:clamp(1.6rem,2.6vw,2.1rem);font-weight:600}
-.legend{display:flex;gap:16px;font-family:var(--mono);font-size:12px;color:var(--on-navy-muted)}
-.legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
-.tools{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-.tool{border:1px solid rgba(255,255,255,.1);border-radius:var(--radius);padding:26px;display:grid;gap:10px;align-content:start;background:rgba(255,255,255,.02);transition:border-color .25s,background .25s;min-width:0}
-.tool:hover{border-color:rgba(127,177,227,.5);background:rgba(127,177,227,.05)}
-.tool .ph{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;gap:6px;color:var(--on-navy-muted)}
-.tool .ph i{width:7px;height:7px;border-radius:50%}
-.tool h4{margin:0;font-family:var(--display);font-size:19px;font-weight:600}
-.tool p{color:var(--on-navy-muted);font-size:14.5px}
-.tool .when{font-family:var(--mono);font-size:12px;color:var(--kairos);margin-top:4px}
-@media (max-width:900px){.tools{grid-template-columns:1fr 1fr}}
-@media (max-width:560px){.tools{grid-template-columns:1fr}}
-
-.calc{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:64px;padding:36px;border-radius:20px;background:linear-gradient(140deg,var(--navy-2),var(--navy));border:1px solid rgba(255,255,255,.1)}
-.calc > div{min-width:0}
-.calc h3{font-size:24px;font-weight:600;margin-bottom:8px}
-.calc p.note{color:var(--on-navy-muted);font-size:14px}
-.field{display:grid;gap:8px;margin-top:22px}
-.field label{display:flex;justify-content:space-between;font-size:14px;color:var(--on-navy-muted)}
-.field output,.field label b{font-family:var(--mono);color:var(--on-navy);font-weight:500}
-input[type=range]{width:100%;accent-color:var(--kairos)}
-.ledger{display:grid;gap:0;font-family:var(--mono);font-variant-numeric:tabular-nums;align-content:start}
-.ledger div{display:flex;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px dashed rgba(255,255,255,.14);font-size:14px;color:var(--on-navy-muted)}
-.ledger div.total{border-bottom:0;padding-top:18px;color:var(--on-navy);font-size:15px}
-.ledger div.total b{font-family:var(--display);font-size:clamp(28px,4vw,40px);color:var(--kairos);font-weight:600}
-@media (max-width:760px){.calc{grid-template-columns:1fr;padding:26px}}
-
-/* Coach */
-.coach-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:56px;align-items:center}
-.disc{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.disc div{border-radius:var(--radius);padding:22px;background:var(--surface);border:1px solid var(--line);display:grid;gap:6px;min-width:0}
-.disc b{font-family:var(--display);font-size:28px;font-weight:600;color:var(--sapphire);line-height:1}
-.disc strong{font-size:15px}
-.disc span{font-size:13.5px;color:var(--muted)}
-.checks{list-style:none;padding:0;margin:26px 0 0;display:grid;gap:12px}
-.checks li{display:grid;grid-template-columns:22px 1fr;gap:12px;color:var(--muted)}
-.checks li strong{color:var(--fg)}
-.checks svg{color:var(--sapphire);margin-top:4px}
-@media (max-width:900px){.coach-grid{grid-template-columns:1fr;gap:36px}}
-
 /* Markets */
 .markets{background:var(--surface);border-block:1px solid var(--line)}
 .market-list{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
@@ -250,7 +200,7 @@ input[type=range]{width:100%;accent-color:var(--kairos)}
 .contact h2{font-size:clamp(2.2rem,4.4vw,3.4rem);font-weight:600}
 .contact .lede{color:var(--on-navy-muted);margin-top:18px}
 form{display:grid;gap:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:28px;min-width:0}
-.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;background:rgba(255,255,255,.06);padding:5px;border-radius:12px}
+.seg{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;background:rgba(255,255,255,.06);padding:5px;border-radius:12px}
 .seg input{position:absolute;opacity:0;pointer-events:none}
 .seg label{text-align:center;padding:10px 6px;border-radius:9px;font-size:14px;font-weight:600;color:var(--on-navy-muted);cursor:pointer}
 .seg input:checked + label{background:var(--on-navy);color:#0E2142}
@@ -304,7 +254,6 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
     <ul>
       <li><a href="#moment">Moment Score</a></li>
       <li><a href="#how">How it works</a></li>
-      <li><a href="#agents">For agents</a></li>
       <li><a href="#markets">Markets</a></li>
       <li><a href="#about">About</a></li>
     </ul>
@@ -323,7 +272,7 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
       <div class="hero-ctas">
         <a class="btn btn-gold" href="#moment">Find your moment
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        <a class="btn btn-ghost" href="#agents">I'm an agent</a>
+        <a class="btn btn-ghost" href="#contact" data-role="selling">What's my home worth?</a>
       </div>
       <div class="hero-meta">
         <div><strong>24/7</strong>AI concierge, always on</div>
@@ -342,9 +291,9 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
       </svg>
       <div class="dial-center"><div><div class="t" id="clock">--:--:--</div><small>chronos · the clock</small></div></div>
       <div class="dial-card">
-        <div class="row"><span>KAIRO MOMENT</span><span>Sample</span></div>
-        <div class="sig"><span class="dot"></span>Act now</div>
-        <div class="row"><span>Huntington, NY</span><span>Score 84</span></div>
+        <div class="row"><span>TODAY'S KAIRO MOMENT</span></div>
+        <div class="sig"><span class="dot" id="hc-dot"></span><span id="hc-sig">Act now</span></div>
+        <div class="row"><span id="hc-area">Huntington, NY</span><span id="hc-score">Score 84</span></div>
       </div>
     </div>
   </div>
@@ -391,15 +340,9 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
       <div class="score" id="score">
         <div class="score-top">
           <h3>Kairo Moment Score</h3>
-          <span class="pill">Sample data · illustration only</span>
+          <span class="pill" id="upd">Sample data · illustration only</span>
         </div>
-        <div class="tabs" role="group" aria-label="Choose a market">
-          <button type="button" data-m="0" aria-pressed="true">Long Island</button>
-          <button type="button" data-m="1" aria-pressed="false">Brooklyn</button>
-          <button type="button" data-m="2" aria-pressed="false">Queens</button>
-          <button type="button" data-m="3" aria-pressed="false">The Bronx</button>
-          <button type="button" data-m="4" aria-pressed="false">Staten Island</button>
-        </div>
+        <div class="tabs" role="group" aria-label="Choose a market" id="tabs"></div>
         <div class="score-main">
           <svg class="gauge" viewBox="0 0 150 150" role="img" aria-label="Moment score">
             <circle class="track" cx="75" cy="75" r="62" fill="none" stroke-width="12"/>
@@ -456,86 +399,9 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
       <li><h3>You arrive</h3><p>Search homes, ask a question or request a Moment Score, on any device, any hour.</p></li>
       <li><h3>Concierge responds</h3><p>Answers instantly, learns what you need, and books a time that works for you.</p></li>
       <li class="agent"><h3>Your agent steps in</h3><p>A licensed Kairo agent matched to your neighborhood, price range and language gets the full picture and calls first.</p></li>
-      <li class="agent"><h3>Agent + Kairo OS</h3><p>Your agent advises and negotiates. The AI keeps every document, date and deadline on track.</p></li>
+      <li class="agent"><h3>You move at the right moment</h3><p>Your agent advises, negotiates and represents you, while Kairo keeps every document, date and deadline on track.</p></li>
     </ol>
     <div class="bands"><div class="c">Chronos · AI handles the clock</div><div class="m">Kairos · your agent owns the moment</div></div>
-  </div>
-</section>
-
-<!-- ================= AGENTS ================= -->
-<section class="agents" id="agents">
-  <div class="wrap">
-    <div class="sec-head">
-      <span class="eyebrow">For agents · now recruiting founding agents</span>
-      <h2>Technology handles the clock, so you can own the moment.</h2>
-      <p class="lede">We built Kairo Realty around intelligent real estate, perfectly timed: AI-powered tools and streamlined workflows so you spend less time on busywork and more time closing.</p>
-    </div>
-    <div class="offer">
-      <div><strong><span class="k">90</span>%</strong><span>You keep 90% of every deal you bring in.</span></div>
-      <div><strong>$<span class="k">50</span></strong><span>A month. The full Kairo OS AI suite, CRM, e-sign and marketing tools.</span></div>
-      <div><strong><span class="k">10</span>+ hrs</strong><span>Our target: ten hours back every week, so you can tell your clients yes.</span></div>
-    </div>
-
-    <div class="os-head">
-      <h3>Kairo OS: six tools that tell you <span class="k">when</span>.</h3>
-      <div class="legend"><span><i style="background:var(--kairos)"></i>At launch</span><span><i style="background:var(--sky)"></i>Next phase</span></div>
-    </div>
-    <div class="tools">
-      <div class="tool"><span class="ph"><i style="background:var(--kairos)"></i>At launch</span><h4>Kairo Moments</h4><p>A ranked daily list of who to call and why: past clients likely to move, buyers whose search just matched, listings due for a price review.</p><span class="when">→ when to call</span></div>
-      <div class="tool"><span class="ph"><i style="background:var(--kairos)"></i>At launch</span><h4>Concierge Inbox</h4><p>Every chat, call and form arrives qualified, summarized and already booked on your calendar. Warm appointments, not raw web leads.</p><span class="when">→ when to show up</span></div>
-      <div class="tool"><span class="ph"><i style="background:var(--kairos)"></i>At launch</span><h4>Listing &amp; Marketing Copilot</h4><p>Drafts listings, social posts, email blasts and CMA narratives in your voice, with a fair-housing language check before anything publishes.</p><span class="when">→ when to go live</span></div>
-      <div class="tool"><span class="ph"><i style="background:var(--sky)"></i>Next phase</span><h4>Transaction Copilot</h4><p>Builds the checklist from the contract, tracks contingency and closing dates, and drafts reminders to attorneys, lenders and clients.</p><span class="when">→ when it's due</span></div>
-      <div class="tool"><span class="ph"><i style="background:var(--sky)"></i>Next phase</span><h4>Offer &amp; Negotiation Copilot</h4><p>Compares competing offers side by side and suggests counter strategy. You make the call.</p><span class="when">→ when to counter</span></div>
-      <div class="tool"><span class="ph"><i style="background:var(--sky)"></i>Next phase</span><h4>Coach Mode</h4><p>DISC-informed guidance on how each client likes to communicate, plus weekly performance nudges and accountability check-ins.</p><span class="when">→ when to push, when to listen</span></div>
-    </div>
-
-    <div class="calc" id="calc">
-      <div>
-        <h3>Run your numbers</h3>
-        <p class="note">Move the sliders to see what a year at Kairo looks like on your own deals.</p>
-        <div class="field">
-          <label for="sides">Closed sides per year <output id="o-sides" for="sides">10</output></label>
-          <input id="sides" type="range" min="1" max="40" value="10">
-        </div>
-        <div class="field">
-          <label for="comm">Average commission per side <output id="o-comm" for="comm">$12,000</output></label>
-          <input id="comm" type="range" min="3000" max="40000" step="500" value="12000">
-        </div>
-        <p class="note" style="margin-top:22px">Illustrative estimate on agent-sourced deals. Brokerage-sourced concierge leads carry a separate referral split. Not a guarantee of income.</p>
-      </div>
-      <div class="ledger" aria-live="polite">
-        <div><span>Gross commission</span><span id="l-gross">–</span></div>
-        <div><span>Kairo split (10%)</span><span id="l-split">–</span></div>
-        <div><span>Kairo OS ($50 × 12)</span><span>−$600</span></div>
-        <div class="total"><span>You keep</span><b id="l-keep">–</b></div>
-      </div>
-    </div>
-    <div style="margin-top:40px;display:flex;gap:12px;flex-wrap:wrap">
-      <a class="btn btn-gold" href="#contact" data-role="agent">Apply as a founding agent</a>
-      <a class="btn btn-ghost" href="#coach">See the coaching layer</a>
-    </div>
-  </div>
-</section>
-
-<!-- ================= COACH ================= -->
-<section id="coach">
-  <div class="wrap coach-grid">
-    <div>
-      <span class="eyebrow">A coach built into the platform</span>
-      <h2 style="font-size:clamp(2rem,3.6vw,2.8rem);font-weight:600;margin-top:14px">Read the person, not just the property.</h2>
-      <p class="lede" style="margin-top:18px">Kairo is founded on 17 years of behavioral performance coaching. The platform flags each client's likely communication style and suggests how to approach them, so every conversation starts on the right foot.</p>
-      <ul class="checks">
-        <li><svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M3 9.5l4 4 8-9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Group and 1:1 coaching</strong> for agents who want to grow faster.</span></li>
-        <li><svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M3 9.5l4 4 8-9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Weekly accountability</strong> built around the numbers that move your business.</span></li>
-        <li><svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M3 9.5l4 4 8-9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Mindset work</strong> that turns confidence into consistent production.</span></li>
-      </ul>
-    </div>
-    <div class="disc" aria-label="DISC communication styles">
-      <div><b>D</b><strong>Dominance</strong><span>Lead with the bottom line. Fast answers, clear options, decisive next step.</span></div>
-      <div><b>I</b><strong>Influence</strong><span>Lead with the vision. Energy, stories and how the home will feel.</span></div>
-      <div><b>S</b><strong>Steadiness</strong><span>Lead with reassurance. A calm plan, no surprises, steady check-ins.</span></div>
-      <div><b>C</b><strong>Conscientiousness</strong><span>Lead with data. Comps, disclosures and every detail in writing.</span></div>
-    </div>
   </div>
 </section>
 
@@ -564,11 +430,11 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
       <div class="monogram" aria-hidden="true">MA</div>
       <div>
         <span class="eyebrow">From the founder</span>
-        <blockquote style="margin-top:16px">"Other AI brokerages are trying to replace the agent. We're building the opposite: a brokerage where technology makes the agent impossible to replace, because they show up at exactly the right moment with exactly the right insight."</blockquote>
+        <blockquote style="margin-top:16px">"Buying or selling a home is one of the defining moments of your life. You shouldn't have to guess when to act. Kairo pairs real-time market intelligence with a trusted local agent who shows up at exactly the right moment, with exactly the right insight."</blockquote>
         <p class="by"><strong>Michael Aharoni</strong>, Founder &amp; Broker of Record</p>
         <div class="creds">
-          <span>17+ years developing agents &amp; leaders</span>
-          <span>DISC &amp; behavioral performance coach</span>
+          <span>17+ years in real estate leadership</span>
+          <span>Communication &amp; behavioral expert</span>
           <span>National speaker &amp; published author</span>
           <span>Nonprofit founder serving military families &amp; first responders</span>
         </div>
@@ -583,13 +449,12 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
     <div>
       <span class="eyebrow" style="color:var(--sky)">Start the conversation</span>
       <h2 style="margin-top:14px">Your moment is closer than you think.</h2>
-      <p class="lede">Tell us where you are. A licensed Kairo agent, or Michael directly if you're an agent, will follow up personally.</p>
+      <p class="lede">Tell us where you are. A licensed Kairo agent who knows your neighborhood will follow up personally, usually within minutes.</p>
     </div>
     <form id="lead" novalidate>
       <div class="seg" role="radiogroup" aria-label="I am">
         <input type="radio" name="role" id="r-buy" value="buying" checked><label for="r-buy">Buying</label>
         <input type="radio" name="role" id="r-sell" value="selling"><label for="r-sell">Selling</label>
-        <input type="radio" name="role" id="r-agent" value="agent"><label for="r-agent">Agent</label>
       </div>
       <div class="two">
         <div class="in"><label for="f-name">Full name</label><input id="f-name" name="name" autocomplete="name" placeholder="Jordan Rivera" required></div>
@@ -615,7 +480,7 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
         <div><b>KAIRO</b> <span>REALTY</span></div>
       </a>
       <nav class="foot-links" aria-label="Footer">
-        <a href="#moment">Moment Score</a><a href="#agents">Join Kairo</a><a href="#about">About</a>
+        <a href="#moment">Moment Score</a><a href="#about">About</a>
         <a href="#" data-todo="NYS Housing and Anti-Discrimination Disclosure">NYS Fair Housing Notice</a>
         <a href="#" data-todo="NYS DOS Standard Operating Procedures">Standard Operating Procedures</a>
         <a href="#" data-todo="Privacy policy">Privacy</a>
@@ -657,28 +522,38 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
   }
   tick();
 
-  /* ---- Moment Score (sample, illustrative data) ---- */
-  var M=[
-    {score:84,sig:'Act now',c:'#E2A042',why:'Inventory is tight and well-priced homes are going under contract fast.',p:'$689K',dom:'31',sup:'2.1',t:[62,63,63,65,66,66,68,70,71,72,74,76]},
-    {score:71,sig:'Good time',c:'#3E9B6E',why:'Prices are steady and buyers have a little more room to negotiate.',p:'$1.02M',dom:'48',sup:'3.4',t:[70,71,70,72,71,72,73,73,72,74,74,75]},
-    {score:78,sig:'Act now',c:'#E2A042',why:'Demand near transit is outpacing new listings this season.',p:'$712K',dom:'39',sup:'2.6',t:[60,61,62,62,64,65,65,67,68,69,70,71]},
-    {score:58,sig:'Good time',c:'#3E9B6E',why:'More choice on the market. Patient buyers are finding value.',p:'$498K',dom:'62',sup:'4.3',t:[66,65,66,65,64,65,64,63,64,63,64,64]},
-    {score:42,sig:'Wait & watch',c:'#7F8FA8',why:'Listings are rising. A price adjustment window may be ahead.',p:'$655K',dom:'71',sup:'5.0',t:[72,73,72,71,71,70,69,69,68,67,67,66]}
-  ];
-  var gv=document.getElementById('gv'), gnum=document.getElementById('gnum'), C=389.6;
+  /* ---- Moment Score: reads data/moment-scores.json (updated daily); built-in copy is the fallback ---- */
+  var DATA={"updated":"2026-11-26","sample":true,"markets":[{"name":"Long Island","area":"Huntington, NY","score":84,"signal":"Act now","why":"Inventory is tight and well-priced homes are going under contract fast.","median":"$689K","dom":31,"supply":2.1,"trend":[62,63,63,65,66,66,68,70,71,72,74,76]},{"name":"Brooklyn","area":"Bay Ridge, Brooklyn","score":71,"signal":"Good time","why":"Prices are steady and buyers have a little more room to negotiate.","median":"$1.02M","dom":48,"supply":3.4,"trend":[70,71,70,72,71,72,73,73,72,74,74,75]},{"name":"Queens","area":"Bayside, Queens","score":78,"signal":"Act now","why":"Demand near transit is outpacing new listings this season.","median":"$712K","dom":39,"supply":2.6,"trend":[60,61,62,62,64,65,65,67,68,69,70,71]},{"name":"The Bronx","area":"Riverdale, Bronx","score":58,"signal":"Good time","why":"More choice on the market. Patient buyers are finding value.","median":"$498K","dom":62,"supply":4.3,"trend":[66,65,66,65,64,65,64,63,64,63,64,64]},{"name":"Staten Island","area":"Tottenville, Staten Island","score":42,"signal":"Wait & watch","why":"Listings are rising. A price adjustment window may be ahead.","median":"$655K","dom":71,"supply":5.0,"trend":[72,73,72,71,71,70,69,69,68,67,67,66]}]};
+  var SIG={'Act now':'#E2A042','Good time':'#3E9B6E','Wait & watch':'#7F8FA8'};
+  var M=[], gv=document.getElementById('gv'), gnum=document.getElementById('gnum'), C=389.6, tabs=document.getElementById('tabs');
+  function render(d){
+    M=d.markets||[]; if(!M.length) return;
+    tabs.innerHTML='';
+    M.forEach(function(m,k){var b=document.createElement('button');b.type='button';b.dataset.m=k;b.textContent=m.name;tabs.appendChild(b)});
+    var upd=document.getElementById('upd'), dt=new Date(d.updated+'T12:00:00');
+    var nice=isNaN(dt)?d.updated:dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    upd.textContent=d.sample?'Sample data · illustration only':'Updated '+nice;
+    upd.classList.toggle('live',!d.sample);
+    var top=M.slice().sort(function(a,b){return b.score-a.score})[0];
+    document.getElementById('hc-sig').textContent=top.signal;
+    document.getElementById('hc-dot').style.background=SIG[top.signal]||'#E2A042';
+    document.getElementById('hc-area').textContent=top.area||top.name;
+    document.getElementById('hc-score').textContent='Score '+top.score;
+    show(0);
+  }
   function show(i){
     var m=M[i];
-    document.querySelectorAll('.tabs button').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.m==i?'true':'false')});
+    tabs.querySelectorAll('button').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.m==i?'true':'false')});
     gv.style.strokeDashoffset=C*(1-m.score/100);
     countTo(gnum,m.score);
-    document.getElementById('sigtxt').textContent=m.sig;
-    document.getElementById('sig').style.setProperty('--sig',m.c);
+    document.getElementById('sigtxt').textContent=m.signal;
+    document.getElementById('sig').style.setProperty('--sig',SIG[m.signal]||'#E2A042');
     document.getElementById('sigwhy').textContent=m.why;
-    document.getElementById('s1').textContent=m.p;
+    document.getElementById('s1').textContent=m.median;
     document.getElementById('s2').textContent=m.dom;
-    document.getElementById('s3').textContent=m.sup;
-    var mn=Math.min.apply(0,m.t)-3, mx=Math.max.apply(0,m.t)+3, W=300, H=56, P=6;
-    var pts=m.t.map(function(v,k){return [P+k*(W-2*P)/(m.t.length-1), H-P-(v-mn)/(mx-mn)*(H-2*P)]});
+    document.getElementById('s3').textContent=m.supply;
+    var t=m.trend, mn=Math.min.apply(0,t)-3, mx=Math.max.apply(0,t)+3, W=300, H=56, P=6;
+    var pts=t.map(function(v,k){return [P+k*(W-2*P)/(t.length-1), H-P-(v-mn)/(mx-mn)*(H-2*P)]});
     var d='M'+pts.map(function(q){return q[0].toFixed(1)+' '+q[1].toFixed(1)}).join(' L');
     document.getElementById('spl').setAttribute('d',d);
     document.getElementById('spa').setAttribute('d',d+' L'+(W-P)+' '+H+' L'+P+' '+H+'Z');
@@ -690,24 +565,12 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
     var from=+el.textContent||0, t0=performance.now();
     (function step(t){var k=Math.min(1,(t-t0)/700);el.textContent=Math.round(from+(to-from)*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(step)})(t0);
   }
-  document.querySelector('.tabs').addEventListener('click',function(e){var b=e.target.closest('button');if(b)show(+b.dataset.m)});
-  show(0);
+  tabs.addEventListener('click',function(e){var b=e.target.closest('button');if(b)show(+b.dataset.m)});
+  render(DATA);
+  fetch('data/moment-scores.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(d){if(d&&d.markets)render(d)}).catch(function(){});
 
-  /* ---- Agent calculator ---- */
-  var fmt=function(n){return (n<0?'−':'')+'$'+Math.abs(Math.round(n)).toLocaleString('en-US')};
-  var sides=document.getElementById('sides'), comm=document.getElementById('comm');
-  function calc(){
-    var g=sides.value*comm.value, split=g*.10, keep=g-split-600;
-    document.getElementById('o-sides').textContent=sides.value;
-    document.getElementById('o-comm').textContent=fmt(+comm.value);
-    document.getElementById('l-gross').textContent=fmt(g);
-    document.getElementById('l-split').textContent='−'+fmt(split);
-    document.getElementById('l-keep').textContent=fmt(keep);
-  }
-  sides.addEventListener('input',calc); comm.addEventListener('input',calc); calc();
-
-  /* ---- Agent CTA preselects the form ---- */
-  document.querySelectorAll('[data-role="agent"]').forEach(function(a){a.addEventListener('click',function(){document.getElementById('r-agent').checked=true})});
+  /* ---- "What's my home worth?" preselects Selling ---- */
+  document.querySelectorAll('[data-role="selling"]').forEach(function(a){a.addEventListener('click',function(){document.getElementById('r-sell').checked=true})});
 
   /* ---- Lead form (connect to your CRM before launch) ---- */
   document.getElementById('lead').addEventListener('submit',function(e){

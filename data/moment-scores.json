@@ -1,0 +1,11 @@
+{
+  "updated": "2026-11-26",
+  "sample": true,
+  "markets": [
+    {"name": "Long Island", "area": "Huntington, NY", "score": 84, "signal": "Act now", "why": "Inventory is tight and well-priced homes are going under contract fast.", "median": "$689K", "dom": 31, "supply": 2.1, "trend": [62,63,63,65,66,66,68,70,71,72,74,76]},
+    {"name": "Brooklyn", "area": "Bay Ridge, Brooklyn", "score": 71, "signal": "Good time", "why": "Prices are steady and buyers have a little more room to negotiate.", "median": "$1.02M", "dom": 48, "supply": 3.4, "trend": [70,71,70,72,71,72,73,73,72,74,74,75]},
+    {"name": "Queens", "area": "Bayside, Queens", "score": 78, "signal": "Act now", "why": "Demand near transit is outpacing new listings this season.", "median": "$712K", "dom": 39, "supply": 2.6, "trend": [60,61,62,62,64,65,65,67,68,69,70,71]},
+    {"name": "The Bronx", "area": "Riverdale, Bronx", "score": 58, "signal": "Good time", "why": "More choice on the market. Patient buyers are finding value.", "median": "$498K", "dom": 62, "supply": 4.3, "trend": [66,65,66,65,64,65,64,63,64,63,64,64]},
+    {"name": "Staten Island", "area": "Tottenville, Staten Island", "score": 42, "signal": "Wait & watch", "why": "Listings are rising. A price adjustment window may be ahead.", "median": "$655K", "dom": 71, "supply": 5.0, "trend": [72,73,72,71,71,70,69,69,68,67,67,66]}
+  ]
+}
