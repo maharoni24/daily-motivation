@@ -81,6 +81,12 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .dial .tick.major{stroke:rgba(234,241,251,.5)}
 .dial .arc{stroke:var(--kairos);filter:drop-shadow(0 0 10px rgba(226,160,66,.55))}
 .dial .hand{stroke:var(--on-navy);transition:none}
+.dial .arc-label{fill:var(--kairos);font-family:var(--mono);font-size:9.5px;letter-spacing:.22em;text-transform:uppercase}
+.dial-card{transition:opacity .45s ease}
+.dial-card.fade{opacity:0}
+.dial-card .dots{display:flex;gap:5px;margin-top:10px}
+.dial-card .dots i{width:5px;height:5px;border-radius:50%;background:rgba(234,241,251,.25)}
+.dial-card .dots i.on{background:var(--kairos)}
 .dial-card{position:absolute;right:-6px;bottom:6%;background:rgba(10,22,44,.82);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:var(--radius);padding:14px 16px;min-width:210px;box-shadow:0 20px 50px rgba(0,0,0,.35)}
 .dial-card .row{display:flex;justify-content:space-between;gap:14px;font-size:12px;color:var(--on-navy-muted);font-family:var(--mono)}
 .dial-card .sig{display:flex;align-items:center;gap:8px;font-family:var(--display);font-weight:600;font-size:18px;margin:6px 0 8px}
@@ -88,7 +94,8 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .dial-center{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;text-align:center}
 .dial-center .t{font-family:var(--mono);font-size:clamp(20px,3vw,26px);letter-spacing:.06em}
 .dial-center small{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--on-navy-muted);text-transform:uppercase;margin-top:4px}
-@media (max-width:900px){.hero .wrap{grid-template-columns:1fr;padding-block:48px 64px}.dial-wrap{max-width:360px}.dial-card{right:0}}
+@media (max-width:900px){.hero .wrap{grid-template-columns:1fr;padding-block:48px 64px}.dial-wrap{max-width:360px}.dial-card{position:relative;right:auto;bottom:auto;margin:-28px auto 0;max-width:320px}}
+.dial-card .row span:last-child{white-space:nowrap}
 
 /* ---------- Sections ---------- */
 section{padding-block:104px}
@@ -378,6 +385,8 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
         <circle cx="200" cy="200" r="132" fill="none" stroke="rgba(234,241,251,.06)" stroke-width="1"/>
         <g id="ticks"></g>
         <path class="arc" id="arc" fill="none" stroke-width="6" stroke-linecap="round"/>
+        <path id="arc-label-path" fill="none" stroke="none"/>
+        <text class="arc-label"><textPath href="#arc-label-path" startOffset="50%" text-anchor="middle">kairos · the moment</textPath></text>
         <line class="hand" id="hand" x1="200" y1="200" x2="200" y2="40" stroke-width="1.5" stroke-linecap="round"/>
         <circle cx="200" cy="200" r="4" fill="#E2A042"/>
       </svg>
@@ -386,6 +395,7 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
         <div class="row"><span>KAIRO MOMENT</span><span id="hc-month"></span></div>
         <div class="sig"><span class="dot" id="hc-dot"></span><span id="hc-sig"></span></div>
         <div class="row"><span id="hc-area"></span><span id="hc-score"></span></div>
+        <div class="dots" id="hc-dots"></div>
       </div>
     </div>
   </div>
@@ -645,8 +655,10 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
     ticks.appendChild(l);
   }
   function pt(deg,r){var a=deg*Math.PI/180;return [200+r*Math.sin(a),200-r*Math.cos(a)];}
-  var s=pt(96,146), e=pt(132,146);
+  var s=pt(42,146), e=pt(78,146);
   document.getElementById('arc').setAttribute('d','M'+s[0]+' '+s[1]+' A146 146 0 0 1 '+e[0]+' '+e[1]);
+  var ls=pt(6,128), le=pt(94,128);
+  document.getElementById('arc-label-path').setAttribute('d','M'+ls[0]+' '+ls[1]+' A128 128 0 0 1 '+le[0]+' '+le[1]);
   var hand=document.getElementById('hand'), clock=document.getElementById('clock');
   function pad(n){return (n<10?'0':'')+n}
   function tick(){
@@ -669,12 +681,34 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
     document.getElementById('upd').textContent='Data: '+mo+' · checked '+(d.checked_label||'');
     document.getElementById('src-month').textContent=mo;
     document.getElementById('hc-month').textContent=mo;
-    var lead=M.filter(function(m){return m.condition})[0];
-    if(lead){document.getElementById('hc-sig').textContent=lead.condition;document.getElementById('hc-dot').style.background=SIG[lead.condition]||'#E2A042';document.getElementById('hc-area').textContent=lead.area;document.getElementById('hc-score').textContent=lead.pulse.mos+' mo. supply';document.getElementById('hc-month').textContent=d.pulse_month||mo}
-    else{var top=M.slice().sort(function(a,b){return b.score-a.score})[0];document.getElementById('hc-sig').textContent=top.signal;document.getElementById('hc-dot').style.background=SIG[top.signal]||'#E2A042';document.getElementById('hc-area').textContent=top.area;document.getElementById('hc-score').textContent='Score '+top.score}
+    heroRotate(d);
     var pc=d.pulse_counties||['Nassau','Suffolk'];document.getElementById('src-pulse').textContent=d.pulse_source?(d.pulse_source+' ('+d.pulse_month+') for '+(pc.length>1?pc.slice(0,-1).join(', ')+' and '+pc[pc.length-1]:pc[0])+'; '):'';
     document.querySelector('.dial-card').hidden=false;
     show(0);
+  }
+  var heroTimer=null;
+  function heroRotate(d){
+    var list=M.filter(function(m){return m.condition}).concat(M.filter(function(m){return !m.condition}));
+    var card=document.querySelector('.dial-card'), dots=document.getElementById('hc-dots'), i=0;
+    dots.textContent=''; list.forEach(function(){dots.appendChild(document.createElement('i'))});
+    function paint(){
+      var m=list[i], head=m.condition||m.signal;
+      document.getElementById('hc-sig').textContent=m.condition||('Momentum: '+m.signal.toLowerCase());
+      document.getElementById('hc-dot').style.background=SIG[head]||'#E2A042';
+      document.getElementById('hc-area').textContent=m.area;
+      document.getElementById('hc-score').textContent=m.pulse?m.pulse.mos+' mo. supply':'Score '+m.score+'/100';
+      document.getElementById('hc-month').textContent=m.pulse?(d.pulse_month||d.month_label):d.month_label;
+      [].forEach.call(dots.children,function(x,k){x.className=k===i?'on':''});
+    }
+    paint();
+    if(heroTimer) clearInterval(heroTimer);
+    if(list.length<2) return;
+    heroTimer=setInterval(function(){
+      if(document.hidden) return;
+      if(reduce){i=(i+1)%list.length;paint();return}
+      card.classList.add('fade');
+      setTimeout(function(){i=(i+1)%list.length;paint();card.classList.remove('fade')},450);
+    },5000);
   }
   function show(i){
     var m=M[i];
