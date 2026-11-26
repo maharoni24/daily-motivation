@@ -63,6 +63,8 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .nav ul a:hover{color:var(--on-navy)}
 .nav .btn{padding:10px 18px;font-size:14px}
 @media (max-width:900px){.nav ul{display:none}}
+.brand div,.nav .btn{white-space:nowrap}
+@media (max-width:430px){.brand{gap:8px}.brand svg{width:32px;height:29px}.brand b,.brand span{font-size:13px;letter-spacing:.12em}.nav .btn{padding:9px 14px;font-size:13px}}
 
 /* ---------- Hero ---------- */
 .hero{background:radial-gradient(1200px 600px at 78% 30%,var(--navy-2),var(--navy) 70%);color:var(--on-navy);overflow:hidden;position:relative}
@@ -82,20 +84,11 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .dial .arc{stroke:var(--kairos);filter:drop-shadow(0 0 10px rgba(226,160,66,.55))}
 .dial .hand{stroke:var(--on-navy);transition:none}
 .dial .arc-label{fill:var(--kairos);font-family:var(--mono);font-size:9.5px;letter-spacing:.22em;text-transform:uppercase}
-.dial-card{transition:opacity .45s ease}
-.dial-card.fade{opacity:0}
-.dial-card .dots{display:flex;gap:5px;margin-top:10px}
-.dial-card .dots i{width:5px;height:5px;border-radius:50%;background:rgba(234,241,251,.25)}
-.dial-card .dots i.on{background:var(--kairos)}
-.dial-card{position:absolute;right:-6px;bottom:6%;background:rgba(10,22,44,.82);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:var(--radius);padding:14px 16px;min-width:210px;box-shadow:0 20px 50px rgba(0,0,0,.35)}
-.dial-card .row{display:flex;justify-content:space-between;gap:14px;font-size:12px;color:var(--on-navy-muted);font-family:var(--mono)}
-.dial-card .sig{display:flex;align-items:center;gap:8px;font-family:var(--display);font-weight:600;font-size:18px;margin:6px 0 8px}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--kairos);box-shadow:0 0 0 4px rgba(226,160,66,.2)}
 .dial-center{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;text-align:center}
 .dial-center .t{font-family:var(--mono);font-size:clamp(20px,3vw,26px);letter-spacing:.06em}
 .dial-center small{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--on-navy-muted);text-transform:uppercase;margin-top:4px}
-@media (max-width:900px){.hero .wrap{grid-template-columns:1fr;padding-block:48px 64px}.dial-wrap{max-width:360px}.dial-card{position:relative;right:auto;bottom:auto;margin:-28px auto 0;max-width:320px}}
-.dial-card .row span:last-child{white-space:nowrap}
+@media (max-width:900px){.hero .wrap{grid-template-columns:1fr;padding-block:48px 64px}.dial-wrap{max-width:360px}}
 
 /* ---------- Sections ---------- */
 section{padding-block:104px}
@@ -375,8 +368,8 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
       </div>
       <div class="hero-meta">
         <div><strong>24/7</strong>AI concierge, always on</div>
-        <div><strong>2 minutes</strong>To your personal Moment Plan</div>
-        <div><strong>6 counties</strong>Live data, Long Island + 4 boroughs</div>
+        <div><strong>Nightly</strong>Market data refreshed</div>
+        <div><strong>6 counties</strong>Long Island + 4 NYC boroughs</div>
       </div>
     </div>
     <div class="dial-wrap" aria-hidden="true">
@@ -391,12 +384,6 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
         <circle cx="200" cy="200" r="4" fill="#E2A042"/>
       </svg>
       <div class="dial-center"><div><div class="t" id="clock">--:--:--</div><small>chronos · the clock</small></div></div>
-      <div class="dial-card" hidden>
-        <div class="row"><span>KAIRO MOMENT</span><span id="hc-month"></span></div>
-        <div class="sig"><span class="dot" id="hc-dot"></span><span id="hc-sig"></span></div>
-        <div class="row"><span id="hc-area"></span><span id="hc-score"></span></div>
-        <div class="dots" id="hc-dots"></div>
-      </div>
     </div>
   </div>
 </section>
@@ -680,35 +667,8 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
     var mo=d.month_label||'';
     document.getElementById('upd').textContent='Data: '+mo+' · checked '+(d.checked_label||'');
     document.getElementById('src-month').textContent=mo;
-    document.getElementById('hc-month').textContent=mo;
-    heroRotate(d);
     var pc=d.pulse_counties||['Nassau','Suffolk'];document.getElementById('src-pulse').textContent=d.pulse_source?(d.pulse_source+' ('+d.pulse_month+') for '+(pc.length>1?pc.slice(0,-1).join(', ')+' and '+pc[pc.length-1]:pc[0])+'; '):'';
-    document.querySelector('.dial-card').hidden=false;
     show(0);
-  }
-  var heroTimer=null;
-  function heroRotate(d){
-    var list=M.filter(function(m){return m.condition}).concat(M.filter(function(m){return !m.condition}));
-    var card=document.querySelector('.dial-card'), dots=document.getElementById('hc-dots'), i=0;
-    dots.textContent=''; list.forEach(function(){dots.appendChild(document.createElement('i'))});
-    function paint(){
-      var m=list[i], head=m.condition||m.signal;
-      document.getElementById('hc-sig').textContent=m.condition||('Momentum: '+m.signal.toLowerCase());
-      document.getElementById('hc-dot').style.background=SIG[head]||'#E2A042';
-      document.getElementById('hc-area').textContent=m.area;
-      document.getElementById('hc-score').textContent=m.pulse?m.pulse.mos+' mo. supply':'Score '+m.score+'/100';
-      document.getElementById('hc-month').textContent=m.pulse?(d.pulse_month||d.month_label):d.month_label;
-      [].forEach.call(dots.children,function(x,k){x.className=k===i?'on':''});
-    }
-    paint();
-    if(heroTimer) clearInterval(heroTimer);
-    if(list.length<2) return;
-    heroTimer=setInterval(function(){
-      if(document.hidden) return;
-      if(reduce){i=(i+1)%list.length;paint();return}
-      card.classList.add('fade');
-      setTimeout(function(){i=(i+1)%list.length;paint();card.classList.remove('fade')},450);
-    },5000);
   }
   function show(i){
     var m=M[i];
