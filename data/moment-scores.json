@@ -10,8 +10,8 @@
       "name": "Nassau",
       "area": "Nassau County, Long Island",
       "score": 16,
-      "signal": "Buyer's moment",
-      "why": "Homes are spending a median 59 days on market, up 3% from a year ago. 13% of listings took a price cut. Active listings are up 5% from a year ago.",
+      "signal": "Cooling",
+      "why": "Homes sold for a median $871K (up 4.9% from a year ago), at 99.2% of original list price, in an average of 44 days. Inventory is up 9.8% year over year, with 2.8 months of supply.",
       "median": "$939K",
       "dom": 59,
       "active": 2605,
@@ -29,14 +29,25 @@
         950000,
         949000,
         939000
-      ]
+      ],
+      "condition": "Seller's market",
+      "pulse": {
+        "median_sale": "$871K",
+        "median_sale_yoy": 4.9,
+        "dom": 44,
+        "pct_list": 99.2,
+        "mos": 2.8,
+        "mos_prior": 2.6,
+        "inventory_yoy": 9.8,
+        "closed_yoy": -0.5
+      }
     },
     {
       "name": "Suffolk",
       "area": "Suffolk County, Long Island",
       "score": 31,
-      "signal": "Buyer's moment",
-      "why": "Homes are spending a median 58 days on market, down 9% from a year ago. 12% of listings took a price cut. Active listings are up 4% from a year ago.",
+      "signal": "Cooling",
+      "why": "Homes sold for a median $735K (up 5.0% from a year ago), at 100.3% of original list price, in an average of 43 days. Inventory is up 12.4% year over year, with 3.1 months of supply.",
       "median": "$875K",
       "dom": 58,
       "active": 4269,
@@ -54,13 +65,24 @@
         899000,
         899000,
         875000
-      ]
+      ],
+      "condition": "Seller's market",
+      "pulse": {
+        "median_sale": "$735K",
+        "median_sale_yoy": 5.0,
+        "dom": 43,
+        "pct_list": 100.3,
+        "mos": 3.1,
+        "mos_prior": 2.5,
+        "inventory_yoy": 12.4,
+        "closed_yoy": -8.2
+      }
     },
     {
       "name": "Brooklyn",
       "area": "Brooklyn (Kings County)",
       "score": 37,
-      "signal": "Buyer's moment",
+      "signal": "Cooling",
       "why": "Homes are spending a median 60 days on market, down 11% from a year ago. 11% of listings took a price cut. Active listings are up 4% from a year ago.",
       "median": "$808K",
       "dom": 60,
@@ -85,7 +107,7 @@
       "name": "Queens",
       "area": "Queens",
       "score": 16,
-      "signal": "Buyer's moment",
+      "signal": "Cooling",
       "why": "Homes are spending a median 74 days on market, down 3% from a year ago. 10% of listings took a price cut. Active listings are up 6% from a year ago.",
       "median": "$648K",
       "dom": 74,
@@ -110,7 +132,7 @@
       "name": "The Bronx",
       "area": "The Bronx",
       "score": 23,
-      "signal": "Buyer's moment",
+      "signal": "Cooling",
       "why": "Homes are spending a median 79 days on market, down 2% from a year ago. 12% of listings took a price cut. Active listings are up 10% from a year ago.",
       "median": "$335K",
       "dom": 79,
@@ -135,7 +157,7 @@
       "name": "Staten Island",
       "area": "Staten Island (Richmond County)",
       "score": 24,
-      "signal": "Buyer's moment",
+      "signal": "Cooling",
       "why": "Homes are spending a median 60 days on market, down 8% from a year ago. 15% of listings took a price cut. Active listings are up 16% from a year ago.",
       "median": "$700K",
       "dom": 60,
@@ -156,5 +178,8 @@
         699900
       ]
     }
-  ]
+  ],
+  "pulse_month": "October 2026",
+  "pulse_source": "OneKey MLS single-family data, via Long Island Press and Homix",
+  "pulse_week": "2026-11-23"
 }

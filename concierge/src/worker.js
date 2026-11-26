@@ -138,7 +138,11 @@ function visitorContext(p, market) {
     p.homeType ? `Home type: ${p.homeType}` : "", p.priority ? `What matters most: ${p.priority}` : "",
     p.mustHaves && p.mustHaves.length ? `Must-haves: ${p.mustHaves.join(", ")}` : "",
     `Communication style: ${p.styleLabel || "not given"}`, p.firstName ? `First name: ${p.firstName}` : ""];
-  if (m) lines.push("", `Market data for ${m.area}, ${market.month_label} (${market.source}): Kairo Moment Score ${m.score}/100 (${m.signal}); median list price ${m.median}; median days on market ${m.dom}; active listings ${m.active}. ${m.why}`);
+  if (m) {
+    lines.push("", `Market data for ${m.area}:`);
+    if (m.condition && m.pulse) lines.push(`Market condition: ${m.condition} (${m.pulse.mos} months of supply; under 4 favors sellers, about 6 is balanced). Median sale price ${m.pulse.median_sale}, ${m.pulse.pct_list}% of original list, average ${m.pulse.dom} days on market. Source: ${market.pulse_source}, ${market.pulse_month}.`);
+    lines.push(`Momentum: ${m.signal}, Kairo Moment Score ${m.score}/100 (trend vs. the county's past three years). Median list price ${m.median}; median days on market ${m.dom}; active listings ${m.active}. Source: ${market.source}, ${market.month_label}.`, m.why);
+  }
   else if (market) lines.push("", `Market data month: ${market.month_label} (${market.source}). No data for this visitor's area.`);
   return lines.filter(Boolean).join("\n");
 }

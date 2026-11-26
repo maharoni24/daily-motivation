@@ -1,0 +1,23 @@
+{
+  "week_of": "2026-11-23",
+  "data_month": "October 2026",
+  "source": "OneKey MLS single-family data, via Long Island Press and Homix",
+  "counties": {
+    "Nassau": {
+      "median_sale": 871000, "median_sale_prior": 830000,
+      "dom": 44, "dom_prior": 47,
+      "pct_list": 99.2, "pct_list_prior": 98.6,
+      "inventory": 2235, "inventory_prior": 2036,
+      "closed": 794, "closed_prior": 798,
+      "new_listings": 954, "new_listings_prior": 925
+    },
+    "Suffolk": {
+      "median_sale": 735000, "median_sale_prior": 700000,
+      "dom": 43, "dom_prior": 46,
+      "pct_list": 100.3, "pct_list_prior": 100.1,
+      "inventory": 3232, "inventory_prior": 2875,
+      "closed": 1037, "closed_prior": 1130,
+      "new_listings": 1316, "new_listings_prior": 1265
+    }
+  }
+}

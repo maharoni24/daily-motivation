@@ -138,6 +138,7 @@ section{padding-block:104px}
 .spark circle{fill:var(--kairos)}
 .score-foot{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-top:20px;padding-top:18px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
 .score-foot a{font-weight:700;color:var(--sapphire);text-decoration:none}
+.momentum{margin:4px 0 0;font-size:13px;font-family:var(--mono);color:var(--muted)}
 .method{margin-top:14px;font-size:12.5px;line-height:1.55;color:var(--muted)}
 .method a{color:var(--sapphire)}
 @media (max-width:560px){.score-main{grid-template-columns:1fr;justify-items:start}.gauge{width:120px;height:120px}}
@@ -406,7 +407,7 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
     <div class="sec-head">
       <span class="eyebrow">For buyers &amp; sellers</span>
       <h2>Know <em style="font-style:normal" class="k">when</em>, not just how much.</h2>
-      <p class="lede">Pricing alone is a commodity. The Kairo Moment Score reads pending sales, days on market, price cuts and inventory in your county, then tells you plainly whether the market favors buyers or sellers, with a licensed agent one tap away.</p>
+      <p class="lede">Pricing alone is a commodity. For every county we serve, we show who holds the leverage today and which way the market is moving, from MLS-based data refreshed as soon as it’s released, with a licensed agent one tap away.</p>
     </div>
     <div class="clients-grid">
       <div class="score" id="score">
@@ -424,32 +425,33 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
           </svg>
           <div style="min-width:0">
             <div class="signal" id="sig"><span class="dot"></span><span id="sigtxt"></span></div>
+            <p class="momentum" id="momentum"></p>
             <p style="color:var(--muted);font-size:15px;margin-top:6px" id="sigwhy"></p>
             <div class="stats">
-              <div><span>Median list price</span><strong id="s1">–</strong></div>
-              <div><span>Median days on market</span><strong id="s2">–</strong></div>
-              <div><span>Active listings</span><strong id="s3">–</strong></div>
+              <div><span id="l1">Median price</span><strong id="s1">–</strong></div>
+              <div><span id="l2">Days on market</span><strong id="s2">–</strong></div>
+              <div><span id="l3">Supply</span><strong id="s3">–</strong></div>
             </div>
           </div>
         </div>
         <svg class="spark" viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true"><path class="a" id="spa"/><path class="l" id="spl"/><circle id="spc" r="4"/></svg>
         <div class="score-foot"><span>Median list price, last 12 months</span><a href="#concierge" data-cg-open>Talk to your agent →</a></div>
-        <p class="method" id="method">The Kairo Moment Score (0–100) compares this month's pending-sale ratio, days on market, share of listings with a price cut and active inventory, each measured against the same month a year earlier, with the past three years in that county. 60 and above favors sellers, below 40 favors buyers. Source: <a href="https://www.realtor.com/research/data/" target="_blank" rel="noopener">Realtor.com Economic Research</a>, county data for <span id="src-month"></span>. Estimates only, not an appraisal.</p>
+        <p class="method" id="method"><strong>How to read this.</strong> The headline shows who holds the leverage today, by months of supply: under 4 months favors sellers, about 6 is balanced, over 6 favors buyers. The Kairo Moment Score (0–100) shows momentum: it compares this month’s pending sales, days on market, price cuts and inventory, each against a year earlier, with the past three years in that county. 60 and up means conditions are heating up; under 40 means they are cooling. Sources: <span id="src-pulse"></span><a href="https://www.realtor.com/research/data/" target="_blank" rel="noopener">Realtor.com Economic Research</a>, county data for <span id="src-month"></span>. Estimates only, not an appraisal.</p>
       </div>
 
       <div>
         <div class="feature-list">
           <div class="feature">
             <div class="ico"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="2"/><path d="M14 14l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
-            <div><h3>Search the way you talk</h3><p>Type <span class="query">2-bed near the LIRR under $700K with outdoor space</span> and get matches plus alerts the moment something new fits.</p></div>
+            <div><h3>Your Moment Plan in two minutes</h3><p>Tap a few answers and get your county’s live numbers, what they mean for you, and your next steps. No forms, no typing.</p></div>
           </div>
           <div class="feature">
             <div class="ico"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 17V8l7-5 7 5v9H3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 17v-5h4v5" stroke="currentColor" stroke-width="2"/></svg></div>
-            <div><h3>"What's my moment?" seller report</h3><p>An instant AI estimate range, then a full market analysis from your Kairo agent within 24 hours.</p></div>
+            <div><h3>"What's my moment?" for sellers</h3><p>See who holds the leverage in your county today, then get a pricing analysis built by your Kairo agent from recent sales near you.</p></div>
           </div>
           <div class="feature">
             <div class="ico"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 5a2 2 0 012-2h10a2 2 0 012 2v7a2 2 0 01-2 2H8l-4 3v-3.2A2 2 0 013 12V5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></div>
-            <div><h3>24/7 Kairo Concierge</h3><p>Instant answers any hour. It tells you it's AI, books tours, and introduces your agent by name and photo.</p></div>
+            <div><h3>24/7 Kairo Concierge</h3><p>Instant answers any hour. It tells you it's AI, learns how you like to work, and connects you with a licensed Kairo agent.</p></div>
           </div>
         </div>
         <div class="promise">
@@ -637,8 +639,8 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
   tick();
 
   /* ---- Moment Score: reads data/moment-scores.json (updated daily); built-in copy is the fallback ---- */
-  var DATA=window.KAIRO_DATA=/*DATA*/{"source":"Realtor.com Economic Research","source_url":"https://www.realtor.com/research/data/","data_month":"202610","month_label":"October 2026","checked":"2026-11-26","checked_label":"Nov 26, 2026","markets":[{"name":"Nassau","area":"Nassau County, Long Island","score":16,"signal":"Buyer's moment","why":"Homes are spending a median 59 days on market, up 3% from a year ago. 13% of listings took a price cut. Active listings are up 5% from a year ago.","median":"$939K","dom":59,"active":2605,"pending_ratio":0.5789,"trend":[899000,899999,918500,922500,939999,934000,949995,959749,958500,950000,949000,939000]},{"name":"Suffolk","area":"Suffolk County, Long Island","score":31,"signal":"Buyer's moment","why":"Homes are spending a median 58 days on market, down 9% from a year ago. 12% of listings took a price cut. Active listings are up 4% from a year ago.","median":"$875K","dom":58,"active":4269,"pending_ratio":0.4387,"trend":[899999,941750,949999,989000,995000,987500,949000,937000,900000,899000,899000,875000]},{"name":"Brooklyn","area":"Brooklyn (Kings County)","score":37,"signal":"Buyer's moment","why":"Homes are spending a median 60 days on market, down 11% from a year ago. 11% of listings took a price cut. Active listings are up 4% from a year ago.","median":"$808K","dom":60,"active":3224,"pending_ratio":0.3614,"trend":[809500,794000,799000,799000,799475,824875,839400,867000,832500,795000,808033,808000]},{"name":"Queens","area":"Queens","score":16,"signal":"Buyer's moment","why":"Homes are spending a median 74 days on market, down 3% from a year ago. 10% of listings took a price cut. Active listings are up 6% from a year ago.","median":"$648K","dom":74,"active":4516,"pending_ratio":0.324,"trend":[640000,642000,628000,623750,629422,642500,649000,649500,650000,650000,649500,648000]},{"name":"The Bronx","area":"The Bronx","score":23,"signal":"Buyer's moment","why":"Homes are spending a median 79 days on market, down 2% from a year ago. 12% of listings took a price cut. Active listings are up 10% from a year ago.","median":"$335K","dom":79,"active":1114,"pending_ratio":0.1732,"trend":[342500,329500,329450,333750,327475,322500,319000,307450,322500,329000,329000,335000]},{"name":"Staten Island","area":"Staten Island (Richmond County)","score":24,"signal":"Buyer's moment","why":"Homes are spending a median 60 days on market, down 8% from a year ago. 15% of listings took a price cut. Active listings are up 16% from a year ago.","median":"$700K","dom":60,"active":948,"pending_ratio":0.6582,"trend":[715000,726450,715000,699500,699000,699000,700000,712472,717000,699900,700000,699900]}]}/*END*/;
-  var SIG={"Seller's moment":'#E2A042','Balanced market':'#3E9B6E',"Buyer's moment":'#5B8BD0'};
+  var DATA=window.KAIRO_DATA=/*DATA*/{"source":"Realtor.com Economic Research","source_url":"https://www.realtor.com/research/data/","data_month":"202610","month_label":"October 2026","checked":"2026-11-26","checked_label":"Nov 26, 2026","markets":[{"name":"Nassau","area":"Nassau County, Long Island","score":16,"signal":"Cooling","why":"Homes sold for a median $871K (up 4.9% from a year ago), at 99.2% of original list price, in an average of 44 days. Inventory is up 9.8% year over year, with 2.8 months of supply.","median":"$939K","dom":59,"active":2605,"pending_ratio":0.5789,"trend":[899000,899999,918500,922500,939999,934000,949995,959749,958500,950000,949000,939000],"condition":"Seller's market","pulse":{"median_sale":"$871K","median_sale_yoy":4.9,"dom":44,"pct_list":99.2,"mos":2.8,"mos_prior":2.6,"inventory_yoy":9.8,"closed_yoy":-0.5}},{"name":"Suffolk","area":"Suffolk County, Long Island","score":31,"signal":"Cooling","why":"Homes sold for a median $735K (up 5.0% from a year ago), at 100.3% of original list price, in an average of 43 days. Inventory is up 12.4% year over year, with 3.1 months of supply.","median":"$875K","dom":58,"active":4269,"pending_ratio":0.4387,"trend":[899999,941750,949999,989000,995000,987500,949000,937000,900000,899000,899000,875000],"condition":"Seller's market","pulse":{"median_sale":"$735K","median_sale_yoy":5.0,"dom":43,"pct_list":100.3,"mos":3.1,"mos_prior":2.5,"inventory_yoy":12.4,"closed_yoy":-8.2}},{"name":"Brooklyn","area":"Brooklyn (Kings County)","score":37,"signal":"Cooling","why":"Homes are spending a median 60 days on market, down 11% from a year ago. 11% of listings took a price cut. Active listings are up 4% from a year ago.","median":"$808K","dom":60,"active":3224,"pending_ratio":0.3614,"trend":[809500,794000,799000,799000,799475,824875,839400,867000,832500,795000,808033,808000]},{"name":"Queens","area":"Queens","score":16,"signal":"Cooling","why":"Homes are spending a median 74 days on market, down 3% from a year ago. 10% of listings took a price cut. Active listings are up 6% from a year ago.","median":"$648K","dom":74,"active":4516,"pending_ratio":0.324,"trend":[640000,642000,628000,623750,629422,642500,649000,649500,650000,650000,649500,648000]},{"name":"The Bronx","area":"The Bronx","score":23,"signal":"Cooling","why":"Homes are spending a median 79 days on market, down 2% from a year ago. 12% of listings took a price cut. Active listings are up 10% from a year ago.","median":"$335K","dom":79,"active":1114,"pending_ratio":0.1732,"trend":[342500,329500,329450,333750,327475,322500,319000,307450,322500,329000,329000,335000]},{"name":"Staten Island","area":"Staten Island (Richmond County)","score":24,"signal":"Cooling","why":"Homes are spending a median 60 days on market, down 8% from a year ago. 15% of listings took a price cut. Active listings are up 16% from a year ago.","median":"$700K","dom":60,"active":948,"pending_ratio":0.6582,"trend":[715000,726450,715000,699500,699000,699000,700000,712472,717000,699900,700000,699900]}],"pulse_month":"October 2026","pulse_source":"OneKey MLS single-family data, via Long Island Press and Homix","pulse_week":"2026-11-23"}/*END*/;
+  var SIG={"Seller's market":'#E2A042','Balanced market':'#3E9B6E',"Buyer's market":'#5B8BD0','Heating up':'#E2A042','Steady':'#3E9B6E','Cooling':'#5B8BD0'};
   var M=[], gv=document.getElementById('gv'), gnum=document.getElementById('gnum'), C=389.6, tabs=document.getElementById('tabs');
   function render(d){
     M=d.markets||[]; if(!M.length) return;
@@ -648,11 +650,10 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
     document.getElementById('upd').textContent='Data: '+mo+' · checked '+(d.checked_label||'');
     document.getElementById('src-month').textContent=mo;
     document.getElementById('hc-month').textContent=mo;
-    var top=M.slice().sort(function(a,b){return b.score-a.score})[0];
-    document.getElementById('hc-sig').textContent=top.signal;
-    document.getElementById('hc-dot').style.background=SIG[top.signal]||'#E2A042';
-    document.getElementById('hc-area').textContent=top.area||top.name;
-    document.getElementById('hc-score').textContent='Score '+top.score;
+    var lead=M.filter(function(m){return m.condition})[0];
+    if(lead){document.getElementById('hc-sig').textContent=lead.condition;document.getElementById('hc-dot').style.background=SIG[lead.condition]||'#E2A042';document.getElementById('hc-area').textContent=lead.area;document.getElementById('hc-score').textContent=lead.pulse.mos+' mo. supply';document.getElementById('hc-month').textContent=d.pulse_month||mo}
+    else{var top=M.slice().sort(function(a,b){return b.score-a.score})[0];document.getElementById('hc-sig').textContent=top.signal;document.getElementById('hc-dot').style.background=SIG[top.signal]||'#E2A042';document.getElementById('hc-area').textContent=top.area;document.getElementById('hc-score').textContent='Score '+top.score}
+    document.getElementById('src-pulse').textContent=d.pulse_source?(d.pulse_source+' ('+d.pulse_month+') for Nassau and Suffolk; '):'';
     document.querySelector('.dial-card').hidden=false;
     show(0);
   }
@@ -661,12 +662,14 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
     tabs.querySelectorAll('button').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.m==i?'true':'false')});
     gv.style.strokeDashoffset=C*(1-m.score/100);
     countTo(gnum,m.score);
-    document.getElementById('sigtxt').textContent=m.signal;
-    document.getElementById('sig').style.setProperty('--sig',SIG[m.signal]||'#E2A042');
+    var head=m.condition||m.signal, q=m.pulse;
+    document.getElementById('sigtxt').textContent=head;
+    document.getElementById('sig').style.setProperty('--sig',SIG[head]||'#E2A042');
+    document.getElementById('momentum').textContent=(m.condition?'Momentum: '+m.signal.toLowerCase()+' · ':'')+'Moment Score '+m.score+' of 100';
     document.getElementById('sigwhy').textContent=m.why;
-    document.getElementById('s1').textContent=m.median;
-    document.getElementById('s2').textContent=m.dom+' days';
-    document.getElementById('s3').textContent=m.active.toLocaleString('en-US');
+    var L=function(id,t){document.getElementById(id).textContent=t};
+    if(q){L('l1','Median sale price');L('s1',q.median_sale);L('l2','Avg. days on market');L('s2',q.dom+' days');L('l3','Months of supply');L('s3',String(q.mos))}
+    else{L('l1','Median list price');L('s1',m.median);L('l2','Median days on market');L('s2',m.dom+' days');L('l3','Active listings');L('s3',m.active.toLocaleString('en-US'))}
     var t=m.trend, mn=Math.min.apply(0,t)-3, mx=Math.max.apply(0,t)+3, W=300, H=56, P=6;
     var pts=t.map(function(v,k){return [P+k*(W-2*P)/(t.length-1), H-P-(v-mn)/(mx-mn)*(H-2*P)]});
     var d='M'+pts.map(function(q){return q[0].toFixed(1)+' '+q[1].toFixed(1)}).join(' L');
@@ -833,7 +836,7 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
   }
 
   /* ---- Moment Plan ---- */
-  var SIG={"Seller's moment":'#E2A042','Balanced market':'#3E9B6E',"Buyer's moment":'#5B8BD0'};
+  var SIG={"Seller's market":'#E2A042','Balanced market':'#3E9B6E',"Buyer's market":'#5B8BD0','Heating up':'#E2A042','Steady':'#3E9B6E','Cooling':'#5B8BD0'};
   function market(){var p=st.profile;return (MARKET.markets||[]).filter(function(m){return m.name===p.countyKey})[0]}
   function matchAgent(){
     var p=st.profile;
@@ -844,11 +847,15 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
     return list[h%list.length];
   }
   function meaning(p,m){
-    var b=isBuyer(p),s=isSeller(p),sig=m.signal;
-    if(s&&!b) return sig==="Buyer's moment"?'Buyers have more choice right now, so pricing right from day one and a strong first impression matter most.':sig==="Seller's moment"?'Conditions favor sellers: well-priced homes are drawing strong demand.':'The market is balanced. The right price and a great first week on the market make the difference.';
-    if(b&&!s) return sig==="Buyer's moment"?'Conditions currently favor buyers: more choice and more time to decide. Your agent will help you use that leverage.':sig==="Seller's moment"?'Conditions favor sellers, so good homes move fast. Being ready to act is your edge.':'The market is balanced. Preparation decides who gets the home.';
-    if(b&&s) return 'You’re on both sides of this market, so timing your sale and your purchase together is the whole game.';
-    return 'Here’s where '+m.area+' stands this month.';
+    var b=isBuyer(p),sl=isSeller(p),c=m.condition,mo=m.signal;
+    var lev=c==="Seller's market"?'Sellers still hold the leverage here':c==="Buyer's market"?'Buyers hold the leverage here':c?'This market is balanced':'';
+    var mv=mo==='Cooling'?'conditions are loosening compared with recent years':mo==='Heating up'?'conditions are tightening compared with recent years':'conditions are holding steady';
+    var lead=lev?lev+', and '+mv+'.':'In '+m.area+', '+mv+'.';
+    var tip='';
+    if(sl&&!b) tip=mo==='Cooling'?' Buyers have more to choose from than a year ago, so pricing right from day one matters most.':' Well-priced, well-presented homes are drawing strong demand.';
+    else if(b&&!sl) tip=c==="Seller's market"?(mo==='Cooling'?' Good homes still sell fast, but you have more choice, and more room on homes that have sat.':' Good homes move fast, so being ready to act is your edge.'):(mo==='Cooling'?' You have more choice and more time than a year ago. Your agent will show you where the room is.':' Being ready to act is your edge.');
+    else if(b&&sl) tip=' Timing your sale and your purchase together is the whole game.';
+    return lead+tip;
   }
   function nextSteps(p){
     var out=[];
@@ -870,11 +877,11 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
     var c=el('div','cg-plan'),top=el('div','top');
     top.appendChild(el('small',null,'Kairo Moment Plan'));
     top.appendChild(el('b',null,(p.firstName?p.firstName+'’s plan':'Your plan')+' · '+(p.county||'')));
-    if(m){var sg=el('div','sig');sg.style.setProperty('--sig',SIG[m.signal]||'#E2A042');sg.appendChild(el('strong',null,String(m.score)));var d=el('span','dot');sg.appendChild(d);sg.appendChild(el('span',null,m.signal+' · Moment Score, '+MARKET.month_label));top.appendChild(sg)}
+    if(m){var sg=el('div','sig');sg.style.setProperty('--sig',SIG[m.signal]||'#E2A042');sg.appendChild(el('strong',null,String(m.score)));var d=el('span','dot');sg.appendChild(d);sg.appendChild(el('span',null,(m.condition?m.condition+' · momentum '+m.signal.toLowerCase():'Momentum: '+m.signal.toLowerCase())+' · Moment Score'));top.appendChild(sg)}
     c.appendChild(top);
     var body=el('div','body');
     if(m){body.appendChild(el('h4',null,'Your market right now'));body.appendChild(el('p',null,meaning(p,m)+' '+m.why));
-      body.appendChild(el('p',null,'Median list price '+m.median+' · '+m.dom+' days on market · '+Number(m.active).toLocaleString('en-US')+' active listings'));}
+      body.appendChild(el('p',null,m.pulse?('Median sale price '+m.pulse.median_sale+' · '+m.pulse.dom+' days on market · '+m.pulse.pct_list+'% of list · '+m.pulse.mos+' months of supply'):('Median list price '+m.median+' · '+m.dom+' days on market · '+Number(m.active).toLocaleString('en-US')+' active listings')));}
     else body.appendChild(el('p',null,'Your agent will map the market for your exact area with you.'));
     body.appendChild(el('h4',null,'Your next steps'));
     var ol=el('ol');nextSteps(p).forEach(function(t){ol.appendChild(el('li',null,t))});body.appendChild(ol);
@@ -886,7 +893,7 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
     else{info.appendChild(el('strong',null,'Being matched now'));info.appendChild(el('small',null,'A licensed Kairo agent who knows '+(p.county||'your area')+' will reach out by '+(p.contactMethod||'').toLowerCase()+' in the '+(p.contactTime||'').toLowerCase()+', as you asked.'))}
     ag.appendChild(av);ag.appendChild(info);body.appendChild(ag);
     if(p.styleLabel) body.appendChild(el('p',null,'They’ll work your way: '+p.styleLabel.toLowerCase()+'.'));
-    if(m) body.appendChild(el('p','src','Market data: '+(MARKET.source||'Realtor.com Economic Research')+', '+MARKET.month_label+'. Estimates, not an appraisal or advice.'));
+    if(m) body.appendChild(el('p','src','Market data: '+(m.pulse?MARKET.pulse_source+', '+MARKET.pulse_month+'; ':'')+(MARKET.source||'Realtor.com Economic Research')+', '+MARKET.month_label+'. Estimates, not an appraisal or advice.'));
     c.appendChild(body); return c;
   }
 
@@ -896,7 +903,7 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
     var p=st.profile, qs=isSeller(p)&&!isBuyer(p)?['How does selling work in New York?','What should I fix before listing?','How will my price be set?','What documents will I need?']
       :isBuyer(p)&&!isSeller(p)?['How does buying work in New York?','What does a buyer agreement cover?','What costs come at closing?','What should I bring to my first meeting?']
       :isBuyer(p)?['How do I time selling and buying?','Can I buy before I sell?','How does selling work in New York?','What costs come at closing?']
-      :['What does this market data mean?','How is the Moment Score calculated?','What does a buyer’s moment mean for sellers?'];
+      :['What does this market data mean?','How is the Moment Score calculated?','What does months of supply mean?'];
     if(st.chat.length<2){var chips=el('div','cg-chips ask');qs.forEach(function(q){var b=el('button',null,q);b.type='button';b.addEventListener('click',function(){send(q)});chips.appendChild(b)});dock.appendChild(chips)}
     var f=el('form','cg-input');var i=el('input');i.id='cg-q';i.placeholder='Ask anything about your move';i.setAttribute('aria-label','Ask the concierge');i.maxLength=2000;var b=el('button',null,'Send');b.type='submit';
     f.appendChild(i);f.appendChild(b);f.addEventListener('submit',function(e){e.preventDefault();if(i.value.trim())send(i.value.trim())});dock.appendChild(f);
@@ -918,7 +925,7 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
       if(!sample) throw new Error('offline');
       var p=st.profile,m=market();
       var ctx='Visitor context: looking to '+p.role+'; area '+(p.county||'?')+'; timeline '+(p.timeline||'?')+'; budget '+(p.budget||'-')+'; financing '+(p.financing||'-')+'; home type '+(p.homeType||'-')+'; priority '+(p.priority||'-')+'; communication style '+(p.styleLabel||'-')+'; first name '+(p.firstName||'-')+'.'+
-        (m?' Market data for '+m.area+', '+MARKET.month_label+' ('+MARKET.source+'): Moment Score '+m.score+' ('+m.signal+'); median list price '+m.median+'; median days on market '+m.dom+'; active listings '+m.active+'. '+m.why:'');
+        (m?' Market data for '+m.area+': '+(m.condition?'market condition '+m.condition+' ('+m.pulse.mos+' months of supply; '+MARKET.pulse_source+', '+MARKET.pulse_month+'); ':'')+'momentum '+m.signal+', Moment Score '+m.score+'/100 ('+MARKET.source+', '+MARKET.month_label+'). '+m.why:'');
       var convo=st.chat.map(function(x){return (x.role==='user'?'Visitor: ':'Concierge: ')+x.content}).join('\n');
       return sample(CG_PROMPT+'\n\n'+ctx+'\n\nConversation so far:\n'+convo+'\n\nWrite the concierge’s reply to the visitor’s latest message. Reply with the message text only.',{cache:false}).then(function(r){return (r.text||'').trim()||'Your agent will follow up on that personally.'});
     });

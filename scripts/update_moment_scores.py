@@ -38,7 +38,33 @@ def money(v):
     return f"${v/1e6:.2f}M" if v >= 1e6 else f"${round(v/1e3):,}K"
 
 def signal(score):
-    return "Seller's moment" if score >= 60 else ("Buyer's moment" if score < 40 else "Balanced market")
+    # Momentum vs. the county's own last three years (not who has leverage today).
+    return "Heating up" if score >= 60 else ("Cooling" if score < 40 else "Steady")
+
+def condition(mos):
+    # Who has leverage today, by months of supply (about 6 = balanced; under 4 favors sellers).
+    return "Seller's market" if mos < 4 else ("Buyer's market" if mos > 6 else "Balanced market")
+
+def pct(a, b):
+    return (a / b - 1) * 100
+
+def load_pulse():
+    """Weekly Market Pulse county figures (Nassau, Suffolk). Validated; returns {} if absent."""
+    f = ROOT / "data/pulse.json"
+    if not f.exists(): return {}
+    p = json.loads(f.read_text())
+    out = {}
+    for name, c in p["counties"].items():
+        need = ["median_sale", "median_sale_prior", "dom", "pct_list", "inventory", "inventory_prior", "closed", "closed_prior"]
+        if any(not isinstance(c.get(k), (int, float)) or c[k] <= 0 for k in need): sys.exit(f"Pulse data incomplete for {name}")
+        if not (80 <= c["pct_list"] <= 120): sys.exit(f"Pulse % of list out of range for {name}")
+        mos, mos_prior = c["inventory"] / c["closed"], c["inventory_prior"] / c["closed_prior"]
+        out[name] = {"condition": condition(mos), "pulse": {
+            "median_sale": money(c["median_sale"]), "median_sale_yoy": round(pct(c["median_sale"], c["median_sale_prior"]), 1),
+            "dom": c["dom"], "pct_list": c["pct_list"], "mos": round(mos, 1), "mos_prior": round(mos_prior, 1),
+            "inventory_yoy": round(pct(c["inventory"], c["inventory_prior"]), 1),
+            "closed_yoy": round(pct(c["closed"], c["closed_prior"]), 1)}}
+    return {"week_of": p["week_of"], "data_month": p["data_month"], "source": p["source"], "counties": out}
 
 def change(v, noun_up, noun_down):
     if v is None or abs(v) < 0.005: return "about the same as a year ago"
@@ -75,6 +101,15 @@ def main():
                     "median": money(price), "dom": int(dom), "active": int(active),
                     "pending_ratio": pending,
                     "trend": [round(num(r["median_listing_price"])) for r in h[-12:]]})
+    pulse = load_pulse()
+    for x in out:
+        pc = pulse.get("counties", {}).get(x["name"])
+        if not pc: continue
+        x.update(pc); q = pc["pulse"]
+        up = lambda v, w: f"{'up' if v > 0 else 'down'} {abs(v):.1f}% {w}"
+        x["why"] = (f"Homes sold for a median {q['median_sale']} ({up(q['median_sale_yoy'], 'from a year ago')}), "
+                    f"at {q['pct_list']}% of original list price, in an average of {q['dom']} days. "
+                    f"Inventory is {up(q['inventory_yoy'], 'year over year')}, with {q['mos']} months of supply.")
     if len(latest_months) != 1: sys.exit(f"Counties disagree on latest month: {latest_months}")
     m = latest_months.pop()
     month_label = datetime.date(int(m[:4]), int(m[4:]), 1).strftime("%B %Y")
@@ -83,6 +118,7 @@ def main():
             "data_month": m, "month_label": month_label,
             "checked": today.isoformat(), "checked_label": today.strftime("%b %-d, %Y"),
             "markets": out}
+    if pulse: data.update({"pulse_month": pulse["data_month"], "pulse_source": pulse["source"], "pulse_week": pulse["week_of"]})
     (ROOT / "data").mkdir(exist_ok=True)
     (ROOT / "data/moment-scores.json").write_text(json.dumps(data, indent=2) + "\n")
     page = ROOT / "src/kairo-realty.html"
