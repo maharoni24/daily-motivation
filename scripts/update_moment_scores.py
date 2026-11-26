@@ -90,6 +90,9 @@ def main():
     blob = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
     src, n = re.subn(r"/\*DATA\*/.*?/\*END\*/", lambda _: "/*DATA*/" + blob + "/*END*/", src, flags=re.S)
     if n != 1: sys.exit("Data marker not found in src/kairo-realty.html")
+    prompt = json.dumps((ROOT / "concierge/system-prompt.md").read_text().strip()).replace("</", "<\\/")
+    src, n = re.subn(r"/\*PROMPT\*/.*?/\*ENDPROMPT\*/", lambda _: "/*PROMPT*/" + prompt + "/*ENDPROMPT*/", src, flags=re.S)
+    if n != 1: sys.exit("Prompt marker not found in src/kairo-realty.html")
     page.write_text(src)
     j = src.index("</style>") + len("</style>")
     head = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'

@@ -1,0 +1,15 @@
+{
+  "name": "kairo-concierge",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.14.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.168.0"
+  }
+}

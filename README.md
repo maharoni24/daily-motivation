@@ -19,3 +19,20 @@ Markets: Nassau, Suffolk, Kings (Brooklyn), Queens, Bronx, Richmond (Staten Isla
 - Connect the lead form (search `TODO: send to CRM` in `index.html`).
 - Fill footer links marked `data-todo`: NYS Fair Housing Notice, Standard Operating Procedures, Privacy.
 - Add a founder headshot in place of the monogram.
+
+## Kairo Concierge (24/7 AI)
+The concierge lives in the page (`src/kairo-realty.html`, search "Kairo Concierge") and talks to a small server in `concierge/` (Cloudflare Worker).
+
+Visitor flow: tap through 6 quick questions -> contact + consent -> personal Moment Plan (live county data, next steps, matched agent, how they want to be worked with) -> ask-anything chat.
+Team alerts: an email (and optional webhook, e.g. Zapier -> text) when a visitor **starts**, and again with the full profile when they **finish**. The website contact form alerts the team the same way.
+Chat: Claude (`claude-opus-5-5`, low effort) with the rules in `concierge/system-prompt.md` (AI disclosure, no price opinions or legal advice, fair-housing guardrails, NY process). Each Q&A is saved on the lead so the agent can read it.
+
+### Go live
+1. `cd concierge && npm install`
+2. `npx wrangler kv namespace create LEADS` and paste the id into `wrangler.toml`
+3. `npx wrangler secret put ANTHROPIC_API_KEY` and `npx wrangler secret put RESEND_API_KEY` (verify your sending domain in Resend)
+4. Set `NOTIFY_EMAIL`, `SITE_URL` and `ALLOWED_ORIGINS` in `wrangler.toml`
+5. `npx wrangler deploy`, then put the Worker URL in `CONCIERGE_API` in `src/kairo-realty.html` and run `python3 scripts/update_moment_scores.py`
+
+### Agent roster
+`data/agents.json` drives the agent recommendation. Each entry: `name`, `title`, `photo` (https URL), `counties` (e.g. `["Nassau","Suffolk"]`, names as in the Moment Score), `languages` (e.g. `["English","Español"]`). Empty list = "being matched now".

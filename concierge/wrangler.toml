@@ -1,0 +1,28 @@
+name = "kairo-concierge"
+main = "src/worker.js"
+compatibility_date = "2026-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[rules]]
+type = "Text"
+globs = ["**/*.md"]
+fallthrough = true
+
+[vars]
+# Your public website, used to read the latest market data.
+SITE_URL = "https://kairorealty.com/"
+# Sites allowed to call this API (comma-separated).
+ALLOWED_ORIGINS = "https://kairorealty.com,https://www.kairorealty.com"
+# Who gets lead alerts (comma-separated).
+NOTIFY_EMAIL = ""
+NOTIFY_FROM = "Kairo Concierge <concierge@kairorealty.com>"
+
+# Create with: npx wrangler kv namespace create LEADS   then paste the id below.
+[[kv_namespaces]]
+binding = "LEADS"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+# Secrets (never in this file):
+#   npx wrangler secret put ANTHROPIC_API_KEY
+#   npx wrangler secret put RESEND_API_KEY        (email alerts)
+#   npx wrangler secret put NOTIFY_WEBHOOK_URL    (optional: Zapier/Make hook for text alerts)
