@@ -36,3 +36,12 @@ Chat: Claude (`claude-opus-5-5`, low effort) with the rules in `concierge/system
 
 ### Agent roster
 Decision (Nov 26, 2026): keep the generic hand-off ("A licensed Kairo agent who knows Queens will reach out by text in the morning, as you asked."), so `data/agents.json` stays empty. Optional later: `data/agents.json` drives a named agent recommendation. Each entry: `name`, `title`, `photo` (https URL), `counties` (e.g. `["Nassau","Suffolk"]`, names as in the Moment Score), `languages` (e.g. `["English","Español"]`). Empty list = "being matched now".
+
+### Home search + favorites (MLS / IDX)
+Buyers describe a home in plain words; the server turns it into MLS filters (Claude, structured output) and queries a RESO Web API IDX feed, e.g. New York State MLS. Hearts save favorites. Every search and favorite is stored on the lead and included in alert emails (favorite alerts at most every 30 minutes per visitor). Until the feed is connected, searches are still saved for the agent and no listings are shown.
+
+Connect the feed (values come from the MLS / IDX vendor):
+- `npx wrangler secret put LISTINGS_API_URL` (the RESO OData base URL)
+- either `npx wrangler secret put LISTINGS_TOKEN`, or `LISTINGS_TOKEN_URL`, `LISTINGS_CLIENT_ID`, `LISTINGS_CLIENT_SECRET` (OAuth client credentials)
+- in `wrangler.toml` `[vars]`: `LISTINGS_MLS_NAME` and `LISTINGS_DISCLAIMER` (the MLS's required IDX notice)
+Field names follow the RESO Data Dictionary; adjust `concierge/src/listings.js` if the MLS names property types differently.

@@ -3,6 +3,7 @@
 // POST /api/chat   -> answers a visitor's question with Claude, grounded in their plan and live market data.
 import Anthropic from "@anthropic-ai/sdk";
 import SYSTEM_PROMPT from "../system-prompt.md";
+import { listingsConfigured, searchListings, SEARCH_SCHEMA, SEARCH_INSTRUCTIONS } from "./listings.js";
 
 const MODEL = "claude-opus-5-5";
 const MAX_TURNS = 24;          // messages kept per request
@@ -17,6 +18,8 @@ export default {
     try {
       if (request.method === "POST" && url.pathname === "/api/event") return json(await handleEvent(request, env), 200, cors);
       if (request.method === "POST" && url.pathname === "/api/chat") return json(await handleChat(request, env), 200, cors);
+      if (request.method === "POST" && url.pathname === "/api/search") return json(await handleSearch(request, env), 200, cors);
+      if (request.method === "POST" && url.pathname === "/api/favorite") return json(await handleFavorite(request, env), 200, cors);
       return json({ error: "Not found" }, 404, cors);
     } catch (err) {
       const status = err.status || 500;
@@ -49,9 +52,11 @@ async function notifyTeam(env, type, lead) {
   const subject =
     type === "started" ? `Concierge: new ${p.role || "visitor"} just started${p.county ? " · " + p.county : ""}`
     : type === "completed" ? `Moment Plan ready: ${who} · ${p.role || ""} · ${p.county || ""} · ${p.timeline || ""}`
+    : type === "favorite" ? `Favorited homes: ${who} saved ${(lead.favorites || []).length} listing(s)${p.county ? " · " + p.county : ""}`
     : `Website contact: ${who} · ${p.role || ""}`;
   const lines = [
-    type === "started" ? "Someone just started the Kairo Concierge. Their full plan follows when they finish." : "Assign an agent and reach out.",
+    type === "started" ? "Someone just started the Kairo Concierge. Their full plan follows when they finish."
+      : type === "favorite" ? "A visitor is saving homes. Here's what they're looking at." : "Assign an agent and reach out.",
     "",
     row("Name", p.name), row("Phone", p.phone), row("Email", p.email), row("Best way / time", [p.contactMethod, p.contactTime].filter(Boolean).join(", ")),
     row("Language", p.language), row("Looking to", p.role), row("Area", p.county), row("Timeline", p.timeline),
@@ -59,6 +64,7 @@ async function notifyTeam(env, type, lead) {
     row("Must-haves", (p.mustHaves || []).join(", ")),
     row("Communication style", p.styleLabel), row("Coach note", STYLE_TIPS[p.style]),
     row("Contact consent", p.consent ? "Yes (" + (p.consentAt || "") + ")" : undefined),
+    ...searchLines(lead),
     "", `Lead ID: ${lead.id}`,
   ].filter((l) => l !== null);
   const text = lines.join("\n");
@@ -84,6 +90,81 @@ const STYLE_TIPS = {
   C: "Bring data and documents. Precise answers in writing; give them time to review.",
 };
 const row = (k, v) => (v ? `${k}: ${v}` : null);
+const money = (n) => (Number.isFinite(n) ? "$" + Math.round(n).toLocaleString("en-US") : "");
+function listingLine(l) {
+  return `- ${[l.address, l.town].filter(Boolean).join(", ")} · ${money(l.price)} · ${l.beds ?? "?"} bd / ${l.baths ?? "?"} ba${l.mls ? " · MLS# " + l.mls : ""}`;
+}
+function searchLines(lead) {
+  const out = [];
+  const s = (lead.searches || []).slice(-5);
+  if (s.length) { out.push("", "Searches:"); s.forEach((x) => out.push(`- "${x.query}"${x.summary ? " (" + x.summary + ")" : ""}${x.count != null ? ", " + x.count + " results" : ""}`)); }
+  const f = lead.favorites || [];
+  if (f.length) { out.push("", `Favorites (${f.length}):`); f.slice(-10).forEach((l) => out.push(listingLine(l))); }
+  return out;
+}
+
+/* ---------- home search + favorites ---------- */
+async function getLead(env, id) {
+  return (await env.LEADS.get(`lead:${id}`, "json")) || { id, createdAt: new Date().toISOString(), events: [], transcript: [] };
+}
+const putLead = (env, lead) => env.LEADS.put(`lead:${lead.id}`, JSON.stringify(lead), { expirationTtl: 60 * 60 * 24 * 180 });
+
+async function handleSearch(request, env) {
+  const body = await readJson(request);
+  const id = cleanId(body.sessionId);
+  const query = typeof body.query === "string" ? body.query.trim().slice(0, 300) : "";
+  if (!query) throw httpError(400, "Describe the home you're looking for.");
+  const profile = sanitizeProfile(body.profile || {});
+  const day = new Date().toISOString().slice(0, 10);
+  const countKey = `search:${id}:${day}`;
+  const count = Number((await env.LEADS.get(countKey)) || 0);
+  if (count >= 30) throw httpError(429, "That's a lot of searches for one day. Your agent can take it from here.");
+  await env.LEADS.put(countKey, String(count + 1), { expirationTtl: 60 * 60 * 26 });
+
+  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const hint = [profile.county && `Visitor's area from intake: ${profile.county}.`, profile.budget && `Budget from intake: ${profile.budget}.`].filter(Boolean).join(" ");
+  const response = await client.beta.messages.create({
+    model: MODEL, max_tokens: 2000,
+    betas: ["server-side-fallback-2026-07-01"], fallbacks: "default",
+    output_config: { effort: "low", format: { type: "json_schema", schema: SEARCH_SCHEMA } },
+    system: SEARCH_INSTRUCTIONS,
+    messages: [{ role: "user", content: `${hint}\nVisitor's search: ${query}` }],
+  });
+  const text = response.content.filter((b) => b.type === "text").map((b) => b.text).join("");
+  let filters;
+  try { filters = JSON.parse(text); } catch { throw httpError(422, "I couldn't read that search. Try something like \"3-bed in Massapequa under $800K\"."); }
+
+  let listings = [], configured = listingsConfigured(env);
+  if (configured) listings = await searchListings(env, filters);
+
+  const lead = await getLead(env, id);
+  lead.profile = { ...lead.profile, ...profile };
+  lead.searches = [...(lead.searches || []), { at: new Date().toISOString(), query, summary: filters.summary, filters, count: configured ? listings.length : null }].slice(-30);
+  await putLead(env, lead);
+  return { configured, filters, listings, disclaimer: env.LISTINGS_DISCLAIMER || "", mls: env.LISTINGS_MLS_NAME || "" };
+}
+
+async function handleFavorite(request, env) {
+  const body = await readJson(request);
+  const id = cleanId(body.sessionId);
+  const l = body.listing || {};
+  if (typeof l.id !== "string" || !/^[\w-]{1,64}$/.test(l.id)) throw httpError(400, "Unknown listing.");
+  const clean = {};
+  for (const k of ["id", "mls", "address", "town", "county", "zip", "type", "office", "photo"]) if (typeof l[k] === "string") clean[k] = l[k].slice(0, 200);
+  for (const k of ["price", "beds", "baths", "sqft"]) if (Number.isFinite(l[k])) clean[k] = l[k];
+  const lead = await getLead(env, id);
+  lead.profile = { ...lead.profile, ...sanitizeProfile(body.profile || {}) };
+  const favs = (lead.favorites || []).filter((f) => f.id !== clean.id);
+  if (body.action !== "remove") favs.push({ ...clean, at: new Date().toISOString() });
+  lead.favorites = favs.slice(-50);
+  // Alert the team about favorites at most every 30 minutes per visitor; each alert lists all current favorites.
+  const now = Date.now();
+  const due = body.action !== "remove" && (!lead.favAlertAt || now - lead.favAlertAt > 30 * 60 * 1000);
+  if (due) lead.favAlertAt = now;
+  await putLead(env, lead);
+  if (due) await notifyTeam(env, "favorite", lead);
+  return { ok: true, favorites: lead.favorites.length };
+}
 
 /* ---------- chat ---------- */
 async function handleChat(request, env) {

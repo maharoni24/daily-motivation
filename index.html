@@ -261,6 +261,25 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
 .cg-prog i{display:block;height:100%;width:0;background:var(--kairos);transition:width .4s}
 .cg-log{flex:1;overflow-y:auto;padding:18px 16px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth}
 .cg-log > *{flex-shrink:0}
+.cg-mode{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--sunk);padding:4px;border-radius:10px}
+.cg-mode button{border:0;background:transparent;padding:8px;border-radius:8px;font:700 13px var(--body);color:var(--muted);cursor:pointer}
+.cg-mode button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 3px rgba(14,33,66,.15)}
+.cg-res{align-self:stretch;display:grid;gap:8px}
+.cg-res .sum{font-size:13px;color:var(--muted)}
+.cg-cards{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x mandatory}
+.cg-card{flex:0 0 220px;scroll-snap-align:start;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface);display:grid;grid-template-rows:auto 1fr}
+.cg-card .ph{position:relative;height:130px;background:linear-gradient(150deg,var(--sunk),var(--line))}
+.cg-card .ph img{width:100%;height:100%;object-fit:cover;display:block}
+.cg-card .heart{position:absolute;top:8px;right:8px;width:36px;height:36px;border-radius:50%;border:0;background:rgba(255,255,255,.92);display:grid;place-items:center;cursor:pointer;color:#0E2142}
+.cg-card .heart[aria-pressed="true"]{color:#D9485F}
+.cg-card .heart[aria-pressed="true"] svg path{fill:currentColor}
+.cg-card .bd{padding:10px 12px;display:grid;gap:3px;font-size:13px}
+.cg-card .pr{font-family:var(--display);font-weight:600;font-size:17px}
+.cg-card .ad{color:var(--fg)}
+.cg-card .of{font-size:11px;color:var(--muted)}
+.cg-card .ask{justify-self:start;margin-top:4px;border:0;background:none;padding:0;color:var(--sapphire);font:700 12.5px var(--body);cursor:pointer}
+.cg-disc{font-size:10.5px;line-height:1.4;color:var(--muted)}
+
 .cg-msg{max-width:88%;padding:11px 14px;border-radius:16px;font-size:14.5px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
 .cg-msg.ai{background:var(--sunk);border-top-left-radius:4px;align-self:flex-start}
 .cg-msg.me{background:var(--sapphire);color:#fff;border-top-right-radius:4px;align-self:flex-end}
@@ -747,7 +766,7 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
   ];
 
   var st = load() || fresh();
-  function fresh(){return {id:uid(),step:0,profile:{},chat:[],log:[],done:false,sent:{}}}
+  function fresh(){return {id:uid(),step:0,profile:{},chat:[],log:[],done:false,sent:{},mode:'',favs:{},searches:[]}}
   function uid(){try{return crypto.randomUUID()}catch(e){return 'k'+Date.now().toString(36)+Math.random().toString(36).slice(2,10)}}
   function load(){try{var s=JSON.parse(localStorage.getItem(KEY));return s&&s.id?s:null}catch(e){return null}}
   function save(){try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}}
@@ -774,6 +793,7 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
   function push(k,t){st.log.push({k:k,t:t});save();draw({k:k,t:t})}
   function draw(item){
     if(item.k==='plan'){log.appendChild(planCard());}
+    else if(item.k==='results'){log.appendChild(resultsCard(item.d||{}));}
     else log.appendChild(el('div','cg-msg '+item.k,item.t));
     scroll();
   }
@@ -840,7 +860,7 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
       var a=matchAgent(); if(a) p.agentName=a.name;
       push('me',name+' · '+[phone,email].filter(Boolean).join(' · '));
       st.step++; st.done=true; save(); event('completed');
-      typing(900,function(){push('plan','');push('ai','Your plan is ready, '+p.firstName+'. While your agent gets up to speed, ask me anything about your move.');ask();var pcs=log.querySelectorAll('.cg-plan');if(pcs.length)log.scrollTop=pcs[pcs.length-1].offsetTop-log.offsetTop-12});
+      typing(900,function(){push('plan','');push('ai','Your plan is ready, '+p.firstName+'. While your agent gets up to speed, '+(isBuyer(p)?'describe your ideal home and I\u2019ll search for it, or ask me anything about your move.':'ask me anything about your move.'));ask();var pcs=log.querySelectorAll('.cg-plan');if(pcs.length)log.scrollTop=pcs[pcs.length-1].offsetTop-log.offsetTop-12});
     });
     dock.appendChild(f);
   }
@@ -910,14 +930,79 @@ footer .wrap{padding-block:48px 40px;display:grid;gap:28px}
   /* ---- ask anything ---- */
   function chatDock(){
     dock.textContent='';
-    var p=st.profile, qs=isSeller(p)&&!isBuyer(p)?['How does selling work in New York?','What should I fix before listing?','How will my price be set?','What documents will I need?']
-      :isBuyer(p)&&!isSeller(p)?['How does buying work in New York?','What does a buyer agreement cover?','What costs come at closing?','What should I bring to my first meeting?']
-      :isBuyer(p)?['How do I time selling and buying?','Can I buy before I sell?','How does selling work in New York?','What costs come at closing?']
-      :['What does this market data mean?','How is the Moment Score calculated?','What does months of supply mean?'];
-    if(st.chat.length<2){var chips=el('div','cg-chips ask');qs.forEach(function(q){var b=el('button',null,q);b.type='button';b.addEventListener('click',function(){send(q)});chips.appendChild(b)});dock.appendChild(chips)}
-    var f=el('form','cg-input');var i=el('input');i.id='cg-q';i.placeholder='Ask anything about your move';i.setAttribute('aria-label','Ask the concierge');i.maxLength=2000;var b=el('button',null,'Send');b.type='submit';
-    f.appendChild(i);f.appendChild(b);f.addEventListener('submit',function(e){e.preventDefault();if(i.value.trim())send(i.value.trim())});dock.appendChild(f);
+    st.favs=st.favs||{}; st.searches=st.searches||[];
+    var p=st.profile, mode=st.mode||(isBuyer(p)||p.role==='Just watching the market'?'search':'ask');
+    var sw=el('div','cg-mode');[['search','Search homes'],['ask','Ask a question']].forEach(function(x){var b=el('button',null,x[1]);b.type='button';b.setAttribute('aria-pressed',mode===x[0]?'true':'false');b.addEventListener('click',function(){st.mode=x[0];save();chatDock();var i=document.getElementById('cg-q');if(i)i.focus()});sw.appendChild(b)});
+    dock.appendChild(sw);
+    var nf=Object.keys(st.favs).length;
+    if(mode==='search'){
+      var ex=['3-bed near the LIRR under $800K','Condo in Queens under $600K with parking','Single-family with a yard in Suffolk'];
+      if(p.county&&p.county.indexOf('Somewhere')<0) ex[0]='3-bed in '+p.county+(p.budget&&p.budget.indexOf('$')===0?' around '+p.budget.split('\u2013').pop():'');
+      var chips=el('div','cg-chips ask');ex.forEach(function(q){var b=el('button',null,q);b.type='button';b.addEventListener('click',function(){search(q)});chips.appendChild(b)});
+      if(nf){var fb=el('button',null,'Your favorites ('+nf+')');fb.type='button';fb.style.borderStyle='solid';fb.addEventListener('click',showFavs);chips.insertBefore(fb,chips.firstChild)}
+      dock.appendChild(chips);
+    } else {
+      var qs=isSeller(p)&&!isBuyer(p)?['How does selling work in New York?','What should I fix before listing?','How will my price be set?','What documents will I need?']
+        :isBuyer(p)&&!isSeller(p)?['How does buying work in New York?','What does a buyer agreement cover?','What costs come at closing?','What should I bring to my first meeting?']
+        :isBuyer(p)?['How do I time selling and buying?','Can I buy before I sell?','How does selling work in New York?','What costs come at closing?']
+        :['What does this market data mean?','How is the Moment Score calculated?','What does months of supply mean?'];
+      var ch=el('div','cg-chips ask');qs.forEach(function(q){var b=el('button',null,q);b.type='button';b.addEventListener('click',function(){send(q)});ch.appendChild(b)});dock.appendChild(ch);
+    }
+    var f=el('form','cg-input');var i=el('input');i.id='cg-q';i.maxLength=mode==='search'?300:2000;i.placeholder=mode==='search'?'Describe your home, e.g. 3-bed near the LIRR under $800K':'Ask anything about your move';i.setAttribute('aria-label',mode==='search'?'Describe the home you want':'Ask the concierge');var b=el('button',null,mode==='search'?'Search':'Send');b.type='submit';
+    f.appendChild(i);f.appendChild(b);f.addEventListener('submit',function(e){e.preventDefault();var v=i.value.trim();if(v)(mode==='search'?search:send)(v)});dock.appendChild(f);
     var fine=el('p','cg-fine','AI assistant: general information only. Your licensed agent gives advice. ');var r=el('a',null,'Start over');r.href='#';r.addEventListener('click',function(e){e.preventDefault();st=fresh();save();log.textContent='';ask()});fine.appendChild(r);dock.appendChild(fine);
+  }
+
+  /* ---- home search + favorites ---- */
+  var HEART='<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-9.3-9.2C1.4 8 3.6 4.5 7.2 4.5c2 0 3.6 1.1 4.8 2.8 1.2-1.7 2.8-2.8 4.8-2.8 3.6 0 5.8 3.5 4.5 6.8-1.8 4.6-9.3 9.2-9.3 9.2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+  function fmt$(n){return n?'$'+Math.round(n).toLocaleString('en-US'):''}
+  function resultsCard(d){
+    var w=el('div','cg-res');
+    if(d.summary) w.appendChild(el('p','sum',d.summary));
+    var row=el('div','cg-cards');
+    (d.listings||[]).forEach(function(l){
+      var c=el('div','cg-card'),ph=el('div','ph');
+      if(l.photo&&/^https:\/\//.test(l.photo)){var im=document.createElement('img');im.src=l.photo;im.alt=l.address||'Listing photo';im.loading='lazy';ph.appendChild(im)}
+      var h=el('button','heart');h.type='button';h.innerHTML=HEART;h.setAttribute('aria-label','Save '+(l.address||'this home'));h.setAttribute('aria-pressed',st.favs&&st.favs[l.id]?'true':'false');
+      h.addEventListener('click',function(){toggleFav(l,h)});ph.appendChild(h);c.appendChild(ph);
+      var bd=el('div','bd');bd.appendChild(el('span','pr',fmt$(l.price)));
+      bd.appendChild(el('span',null,[l.beds!=null?l.beds+' bd':'',l.baths!=null?l.baths+' ba':'',l.sqft?Number(l.sqft).toLocaleString('en-US')+' sq ft':''].filter(Boolean).join(' · ')));
+      bd.appendChild(el('span','ad',[l.address,l.town].filter(Boolean).join(', ')));
+      if(l.office) bd.appendChild(el('span','of','Listing courtesy of '+l.office));
+      var a=el('button','ask','Ask about this home');a.type='button';a.addEventListener('click',function(){st.mode='ask';save();send('Tell me what to consider about '+[l.address,l.town].filter(Boolean).join(', ')+', listed at '+fmt$(l.price)+(l.beds!=null?', '+l.beds+' bedrooms':'')+'.')});bd.appendChild(a);
+      c.appendChild(bd);row.appendChild(c);
+    });
+    w.appendChild(row);
+    if(d.disclaimer||d.mls) w.appendChild(el('p','cg-disc',[d.mls?'Listing data from '+d.mls+'.':'',d.disclaimer||''].filter(Boolean).join(' ')));
+    return w;
+  }
+  function toggleFav(l,btn){
+    st.favs=st.favs||{}; var on=!st.favs[l.id];
+    if(on) st.favs[l.id]=l; else delete st.favs[l.id];
+    save(); if(btn) btn.setAttribute('aria-pressed',on?'true':'false');
+    if(CONCIERGE_API) fetch(CONCIERGE_API.replace(/\/$/,'')+'/api/favorite',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:st.id,listing:l,action:on?'add':'remove',profile:st.profile})}).catch(function(){});
+    if(!busy) chatDock();
+  }
+  function showFavs(){
+    var ls=Object.keys(st.favs||{}).map(function(k){return st.favs[k]});
+    if(!ls.length) return;
+    push('me','Show my favorites'); push('results',''); st.log[st.log.length-1].d={summary:'Your saved homes ('+ls.length+')',listings:ls}; save(); log.lastChild.replaceWith(resultsCard(st.log[st.log.length-1].d)); scroll();
+  }
+  function search(q){
+    if(busy)return; busy=true; push('me',q); st.searches.push({q:q,at:new Date().toISOString()}); save(); chatDock();
+    var t=el('div','cg-typing');t.innerHTML='<i></i><i></i><i></i>';log.appendChild(t);scroll();
+    var done=function(){t.remove();busy=false;save();chatDock();var i=document.getElementById('cg-q');if(i)i.focus()};
+    if(!CONCIERGE_API){push('ai','Live home search turns on once our MLS listing feed is connected. I\u2019ve saved this search for your Kairo agent, who can send you matching homes.');done();return}
+    fetch(CONCIERGE_API.replace(/\/$/,'')+'/api/search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:st.id,query:q,profile:st.profile})})
+      .then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'failed');return d})})
+      .then(function(d){
+        var f=d.filters||{}, skip=(f.not_searchable||[]).length?' I can only search on the home itself, so I left out: '+f.not_searchable.join(', ')+'. Your agent can point you to public sources for those.':'';
+        if(!d.configured){push('ai','Got it: '+(f.summary||q)+'. Live listings turn on once our MLS feed is connected, and I\u2019ve saved this search so your agent can send you matches.'+skip);return}
+        if(!d.listings.length){push('ai','No active listings match '+(f.summary||'that')+' right now. Try widening the price or area, or your agent can set up an alert for you.'+skip);return}
+        push('ai',d.listings.length+' active listing'+(d.listings.length>1?'s':'')+' for '+(f.summary||q)+'. Tap the heart to save a home; your agent will see what you like.'+skip);
+        st.log.push({k:'results',d:{summary:'',listings:d.listings,disclaimer:d.disclaimer,mls:d.mls}}); save(); draw(st.log[st.log.length-1]);
+      },function(e){push('note',e.message&&e.message!=='failed'?e.message:'Search couldn\u2019t run just now. Try again in a moment.')})
+      .then(done);
   }
   var busy=false;
   function send(q){
