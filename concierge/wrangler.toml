@@ -14,7 +14,7 @@ SITE_URL = "https://kairorealty.com/"
 # Sites allowed to call this API (comma-separated).
 ALLOWED_ORIGINS = "https://kairorealty.com,https://www.kairorealty.com"
 # Who gets lead alerts (comma-separated).
-NOTIFY_EMAIL = ""
+NOTIFY_EMAIL = "ma@michaelaharoni.com"
 NOTIFY_FROM = "Kairo Concierge <concierge@kairorealty.com>"
 
 # Create with: npx wrangler kv namespace create LEADS   then paste the id below.

@@ -35,4 +35,4 @@ Chat: Claude (`claude-opus-5-5`, low effort) with the rules in `concierge/system
 5. `npx wrangler deploy`, then put the Worker URL in `CONCIERGE_API` in `src/kairo-realty.html` and run `python3 scripts/update_moment_scores.py`
 
 ### Agent roster
-`data/agents.json` drives the agent recommendation. Each entry: `name`, `title`, `photo` (https URL), `counties` (e.g. `["Nassau","Suffolk"]`, names as in the Moment Score), `languages` (e.g. `["English","Español"]`). Empty list = "being matched now".
+Decision (Nov 26, 2026): keep the generic hand-off ("A licensed Kairo agent who knows Queens will reach out by text in the morning, as you asked."), so `data/agents.json` stays empty. Optional later: `data/agents.json` drives a named agent recommendation. Each entry: `name`, `title`, `photo` (https URL), `counties` (e.g. `["Nassau","Suffolk"]`, names as in the Moment Score), `languages` (e.g. `["English","Español"]`). Empty list = "being matched now".
