@@ -118,7 +118,10 @@ def main():
             "data_month": m, "month_label": month_label,
             "checked": today.isoformat(), "checked_label": today.strftime("%b %-d, %Y"),
             "markets": out}
-    if pulse: data.update({"pulse_month": pulse["data_month"], "pulse_source": pulse["source"], "pulse_week": pulse["week_of"]})
+    if pulse:
+        names = [x["name"] for x in out if x["name"] in pulse["counties"]]
+        data.update({"pulse_month": pulse["data_month"], "pulse_source": pulse["source"], "pulse_week": pulse["week_of"],
+                     "pulse_counties": names})
     (ROOT / "data").mkdir(exist_ok=True)
     (ROOT / "data/moment-scores.json").write_text(json.dumps(data, indent=2) + "\n")
     page = ROOT / "src/kairo-realty.html"

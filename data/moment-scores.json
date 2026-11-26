@@ -181,5 +181,9 @@
   ],
   "pulse_month": "October 2026",
   "pulse_source": "OneKey MLS single-family data, via Long Island Press and Homix",
-  "pulse_week": "2026-11-23"
+  "pulse_week": "2026-11-23",
+  "pulse_counties": [
+    "Nassau",
+    "Suffolk"
+  ]
 }
